@@ -526,18 +526,38 @@ int snd_pcm_hw_refine(struct snd_pcm_substream *substream,
 		params->rate_den = 0;
 	}
 
+	dev_dbg(substream->pcm->card->dev, "1 native buffer min %d\n",
+		hw_param_interval(params, SNDRV_PCM_HW_PARAM_BUFFER_BYTES)->min);
+	dev_dbg(substream->pcm->card->dev, "1 native buffer size %d\n",
+		params_buffer_bytes(params));
+	
 	err = constrain_mask_params(substream, params);
 	if (err < 0)
 		return err;
 
+	dev_dbg(substream->pcm->card->dev, "2 native buffer min %d\n",
+		hw_param_interval(params, SNDRV_PCM_HW_PARAM_BUFFER_BYTES)->min);
+	dev_dbg(substream->pcm->card->dev, "2 native buffer size %d\n",
+		params_buffer_bytes(params));
+	
 	err = constrain_interval_params(substream, params);
 	if (err < 0)
 		return err;
 
+	dev_dbg(substream->pcm->card->dev, "3 native buffer min %d\n",
+		hw_param_interval(params, SNDRV_PCM_HW_PARAM_BUFFER_BYTES)->min);
+	dev_dbg(substream->pcm->card->dev, "3 native buffer size %d\n",
+		params_buffer_bytes(params));
+	
 	err = constrain_params_by_rules(substream, params);
 	if (err < 0)
 		return err;
 
+	dev_dbg(substream->pcm->card->dev, "4 native buffer min %d\n",
+		hw_param_interval(params, SNDRV_PCM_HW_PARAM_BUFFER_BYTES)->min);
+	dev_dbg(substream->pcm->card->dev, "4 native buffer size %d\n",
+		params_buffer_bytes(params));
+	
 	params->rmask = 0;
 
 	return 0;
@@ -694,6 +714,9 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 		if (atomic_read(&substream->mmap_count))
 			return -EBADFD;
 
+	dev_dbg(substream->pcm->card->dev, "native buffer size %d\n",
+		params_buffer_bytes(params));
+
 	params->rmask = ~0U;
 	err = snd_pcm_hw_refine(substream, params);
 	if (err < 0)
@@ -713,6 +736,9 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 			goto _error;
 	}
 
+	dev_dbg(substream->pcm->card->dev, "native buffer size %d\n",
+		params_buffer_bytes(params));
+		
 	runtime->access = params_access(params);
 	runtime->format = params_format(params);
 	runtime->subformat = params_subformat(params);

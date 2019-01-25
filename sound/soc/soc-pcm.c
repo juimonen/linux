@@ -920,6 +920,9 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai;
 	int i, ret = 0;
 
+	dev_dbg(rtd->card->dev, "pcm-soc: params buffer size %d\n",
+		params_buffer_bytes(params));
+
 	mutex_lock_nested(&rtd->pcm_mutex, rtd->pcm_subclass);
 	if (rtd->dai_link->ops->hw_params) {
 		ret = rtd->dai_link->ops->hw_params(substream, params);

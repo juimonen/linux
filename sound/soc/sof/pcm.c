@@ -58,6 +58,12 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 	dev_dbg(sdev->dev, "pcm: hw params stream %d dir %d\n",
 		spcm->pcm.pcm_id, substream->stream);
 
+	dev_dbg(sdev->dev, "pcm: runtime buffer size %d\n",
+		runtime->hw.buffer_bytes_max);
+		
+	dev_dbg(sdev->dev, "pcm: params buffer size %d\n",
+		params_buffer_bytes(params));
+
 	memset(&pcm, 0, sizeof(pcm));
 
 	/* allocate audio buffer pages */
@@ -74,6 +80,23 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 
+	dev_dbg(sdev->dev, "stream_tag %d", pcm.params.stream_tag);
+	
+	dev_dbg(sdev->dev, "pcm.params.buffer.pages %d", pcm.params.buffer.pages);
+	dev_dbg(sdev->dev, "pcm.hdr.size %d", pcm.hdr.size);
+	dev_dbg(sdev->dev, "pcm.hdr.cmd %d", pcm.hdr.cmd);
+	dev_dbg(sdev->dev, "pcm.comp_id %d", pcm.comp_id);
+	dev_dbg(sdev->dev, "pcm.params.hdr.size %d", pcm.params.hdr.size);
+	dev_dbg(sdev->dev, "pcm.params.buffer.phy_addr %d", pcm.params.buffer.phy_addr);
+	dev_dbg(sdev->dev, "pcm.params.buffer.size %d", pcm.params.buffer.size);
+	dev_dbg(sdev->dev, "pcm.params.buffer.offset %d", pcm.params.buffer.offset);
+	dev_dbg(sdev->dev, "pcm.params.direction %d", pcm.params.direction);
+	dev_dbg(sdev->dev, "pcm.params.sample_valid_bytes %d", pcm.params.sample_valid_bytes);
+	dev_dbg(sdev->dev, "pcm.params.buffer_fmt %d", pcm.params.buffer_fmt);
+	dev_dbg(sdev->dev, "pcm.params.rate %d", pcm.params.rate);
+	dev_dbg(sdev->dev, "pcm.params.channels %d", pcm.params.channels);
+	dev_dbg(sdev->dev, "pcm.params.host_period_bytes %d", pcm.params.host_period_bytes);
+	
 	/* number of pages should be rounded up */
 	pcm.params.buffer.pages = DIV_ROUND_UP(runtime->dma_bytes, PAGE_SIZE);
 
@@ -126,6 +149,21 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
+	dev_dbg(sdev->dev, "pcm.params.buffer.pages %d", pcm.params.buffer.pages);
+	dev_dbg(sdev->dev, "pcm.hdr.size %d", pcm.hdr.size);
+	dev_dbg(sdev->dev, "pcm.hdr.cmd %d", pcm.hdr.cmd);
+	dev_dbg(sdev->dev, "pcm.comp_id %d", pcm.comp_id);
+	dev_dbg(sdev->dev, "pcm.params.hdr.size %d", pcm.params.hdr.size);
+	dev_dbg(sdev->dev, "pcm.params.buffer.phy_addr %d", pcm.params.buffer.phy_addr);
+	dev_dbg(sdev->dev, "pcm.params.buffer.size %d", pcm.params.buffer.size);
+	dev_dbg(sdev->dev, "pcm.params.buffer.offset %d", pcm.params.buffer.offset);
+	dev_dbg(sdev->dev, "pcm.params.direction %d", pcm.params.direction);
+	dev_dbg(sdev->dev, "pcm.params.sample_valid_bytes %d", pcm.params.sample_valid_bytes);
+	dev_dbg(sdev->dev, "pcm.params.buffer_fmt %d", pcm.params.buffer_fmt);
+	dev_dbg(sdev->dev, "pcm.params.rate %d", pcm.params.rate);
+	dev_dbg(sdev->dev, "pcm.params.channels %d", pcm.params.channels);
+	dev_dbg(sdev->dev, "pcm.params.host_period_bytes %d", pcm.params.host_period_bytes);
+
 	/* firmware already configured host stream */
 	ret = snd_sof_pcm_platform_hw_params(sdev,
 					     substream,
@@ -141,15 +179,19 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 	/* send IPC to the DSP */
 	ret = sof_ipc_tx_message(sdev->ipc, pcm.hdr.cmd, &pcm, sizeof(pcm),
 				 &ipc_params_reply, sizeof(ipc_params_reply));
+
+	/*
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: hw params ipc failed for stream %d\n",
 			pcm.params.stream_tag);
 		return ret;
-	}
-
+	}'
+	*/
 	/* validate offset */
-	posn_offset = ipc_params_reply.posn_offset;
-
+	/* posn_offset = ipc_params_reply.posn_offset; */
+	posn_offset = 0;
+	ret = 0;
+	  
 	/* check if offset is overflow or it is not aligned */
 	if (posn_offset > sdev->stream_box.size ||
 	    posn_offset % sizeof(struct sof_ipc_stream_posn) != 0) {

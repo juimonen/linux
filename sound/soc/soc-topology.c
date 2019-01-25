@@ -1785,6 +1785,10 @@ static int soc_tplg_dai_create(struct soc_tplg *tplg,
 		stream = &dai_drv->playback;
 		caps = &pcm->caps[SND_SOC_TPLG_STREAM_PLAYBACK];
 		set_stream_info(stream, caps);
+
+		dev_dbg(tplg->comp->dev, "ASoC: set stream rate min %d\n", stream->rate_min);
+		dev_dbg(tplg->comp->dev, "ASoC: set stream rate max %d\n", stream->rate_max);
+
 	}
 
 	if (pcm->capture) {
