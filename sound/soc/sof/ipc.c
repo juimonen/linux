@@ -178,6 +178,8 @@ static void ipc_log_header(struct device *dev, u8 *text, u32 cmd)
 		break;
 	case SOF_IPC_GLB_TRACE_MSG:
 		str = "GLB_TRACE_MSG"; break;
+	case SOF_IPC_GLB_LARGE:
+		str = "GLB_LARGE"; break;
 	default:
 		str = "unknown GLB command"; break;
 	}
@@ -241,10 +243,67 @@ static int tx_wait_done(struct snd_sof_ipc *ipc, struct snd_sof_ipc_msg *msg,
 	return ret;
 }
 
-/* send IPC message from host to DSP */
 int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
-		       void *msg_data, size_t msg_bytes, void *reply_data,
-		       size_t reply_bytes)
+			void *msg_data, size_t msg_bytes, void *reply_data,
+			size_t reply_bytes)
+{
+	struct sof_ipc_large_hdr *hdr;
+	uint32_t num_msg = 0;
+	uint32_t offset = 0;
+	uint32_t send_bytes = 0;
+	int size;
+	int ret;
+	int i;
+
+	/* if bigger than max size, chop to smaller pieces */
+	if (msg_bytes > SOF_IPC_MSG_MAX_SIZE) {
+		dev_dbg(ipc->sdev->dev, "going to send large ipc size %d\n",
+			msg_bytes);
+		size = SOF_IPC_MSG_MAX_SIZE -
+			sizeof(struct sof_ipc_large_hdr);
+		num_msg = (msg_bytes + size - 1) / size;
+
+		hdr = (struct sof_ipc_large_hdr *)
+			kzalloc(SOF_IPC_MSG_MAX_SIZE, GFP_KERNEL);
+		if (!hdr)
+			return -ENOMEM;
+
+		dev_dbg(ipc->sdev->dev, "large ipc hdr allocated\n");
+
+		hdr->hdr.cmd = SOF_IPC_GLB_LARGE;
+		hdr->cmd = header;
+		hdr->count = num_msg;
+
+		for (i = 0; i < num_msg; i++) {
+			hdr->id = i;
+			send_bytes = msg_bytes > size ? size : msg_bytes;
+			memcpy(hdr->data, msg_data + offset, send_bytes);
+			hdr->hdr.size = send_bytes;
+			ret = sof_ipc_tx_msg(ipc, SOF_IPC_GLB_LARGE,
+					     hdr, send_bytes +
+					     sizeof(struct sof_ipc_large_hdr),
+					     reply_data, reply_bytes);
+			if (ret < 0)
+				break;
+
+			offset += size;
+			msg_bytes -= send_bytes;
+		}
+		kfree(hdr);
+	}
+	else {
+		ret = sof_ipc_tx_message(ipc, header, msg_data, msg_bytes,
+					 reply_data, reply_bytes);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(sof_ipc_tx_message);
+
+/* send IPC message from host to DSP */
+int sof_ipc_tx_msg(struct snd_sof_ipc *ipc, u32 header,
+		   void *msg_data, size_t msg_bytes, void *reply_data,
+		   size_t reply_bytes)
 {
 	struct snd_sof_dev *sdev = ipc->sdev;
 	struct snd_sof_ipc_msg *msg;
@@ -279,7 +338,7 @@ int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
 	/* now wait for completion */
 	return tx_wait_done(ipc, msg, reply_data);
 }
-EXPORT_SYMBOL(sof_ipc_tx_message);
+EXPORT_SYMBOL(sof_ipc_tx_msg);
 
 /* send next IPC message in list */
 static void ipc_tx_next_msg(struct work_struct *work)
