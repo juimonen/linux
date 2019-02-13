@@ -636,6 +636,48 @@ int snd_sof_ipc_stream_posn(struct snd_sof_dev *sdev,
 }
 EXPORT_SYMBOL(snd_sof_ipc_stream_posn);
 
+static int sof_get_ctrl_ipc_dir(enum sof_ipc_ctrl_type ctrl_type)
+{
+	int send;
+
+	switch (ctrl_type) {
+	case SOF_CTRL_TYPE_VALUE_CHAN_GET:
+	case SOF_CTRL_TYPE_VALUE_COMP_GET:
+	case SOF_CTRL_TYPE_DATA_GET:
+		send = 0;
+		break;
+	case SOF_CTRL_TYPE_VALUE_CHAN_SET:
+	case SOF_CTRL_TYPE_VALUE_COMP_SET:
+	case SOF_CTRL_TYPE_DATA_SET:
+		send = 1;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return send;
+}
+
+static void sof_set_get_mmap(struct snd_sof_dev *sdev,
+			     struct snd_sof_control *scontrol,
+			     struct sof_ipc_ctrl_data *cdata,
+			     int send)
+{
+	u32 send_bytes;
+
+	send_bytes = sizeof(struct sof_ipc_ctrl_value_chan) *
+		cdata->num_elems;
+
+	if (send)
+		snd_sof_dsp_block_write(sdev, sdev->mmio_bar,
+					scontrol->readback_offset,
+					cdata->chanv, send_bytes);
+	else
+		snd_sof_dsp_block_read(sdev, sdev->mmio_bar,
+				       scontrol->readback_offset,
+				       cdata->chanv, send_bytes);
+}
+
 /*
  * IPC get()/set() for kcontrols.
  */
@@ -647,39 +689,19 @@ int snd_sof_ipc_set_get_comp_data(struct snd_sof_ipc *ipc,
 {
 	struct snd_sof_dev *sdev = ipc->sdev;
 	struct sof_ipc_ctrl_data *cdata = scontrol->control_data;
-	u32 send_bytes;
 	int send;
 	int err = 0;
 
 	/* read or write firmware volume */
 	if (scontrol->readback_offset != 0) {
 		/* write/read value header via mmaped region */
-		switch (ctrl_type) {
-		case SOF_CTRL_TYPE_VALUE_CHAN_GET:
-		case SOF_CTRL_TYPE_VALUE_COMP_GET:
-		case SOF_CTRL_TYPE_DATA_GET:
-			send = 0;
-			break;
-		case SOF_CTRL_TYPE_VALUE_CHAN_SET:
-		case SOF_CTRL_TYPE_VALUE_COMP_SET:
-		case SOF_CTRL_TYPE_DATA_SET:
-			send = 1;
-			break;
-		default:
-			return -EINVAL;
+		send = sof_get_ctrl_ipc_dir(ctrl_type);
+		if (send < 0) {
+			dev_err(sdev->dev, "error: set/get ctrl type %d\n",
+				ctrl_type);
+			return send;
 		}
-		send_bytes = sizeof(struct sof_ipc_ctrl_value_chan) *
-		cdata->num_elems;
-
-		if (send)
-			snd_sof_dsp_block_write(sdev, sdev->mmio_bar,
-						scontrol->readback_offset,
-						cdata->chanv, send_bytes);
-
-		else
-			snd_sof_dsp_block_read(sdev, sdev->mmio_bar,
-					       scontrol->readback_offset,
-					       cdata->chanv, send_bytes);
+		sof_set_get_mmap(sdev, scontrol, cdata, send);
 		return 0;
 	}
 
