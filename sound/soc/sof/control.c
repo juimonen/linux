@@ -52,9 +52,10 @@ int snd_sof_volume_get(struct snd_kcontrol *kcontrol,
 	}
 
 	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_VOLUME);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_VOLUME);
 
 	/* read back each channel */
 	for (i = 0; i < channels; i++)
@@ -97,9 +98,10 @@ int snd_sof_volume_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_VOLUME);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_VOLUME);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -128,9 +130,10 @@ int snd_sof_switch_get(struct snd_kcontrol *kcontrol,
 	}
 
 	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_SWITCH);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_SWITCH);
 
 	/* read back each channel */
 	for (i = 0; i < channels; i++)
@@ -169,9 +172,10 @@ int snd_sof_switch_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_SWITCH);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_SWITCH);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -200,9 +204,10 @@ int snd_sof_enum_get(struct snd_kcontrol *kcontrol,
 	}
 
 	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_ENUM);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_ENUM);
 
 	/* read back each channel */
 	for (i = 0; i < channels; i++)
@@ -241,9 +246,10 @@ int snd_sof_enum_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_ENUM);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_ENUM);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -279,8 +285,11 @@ int snd_sof_bytes_get(struct snd_kcontrol *kcontrol,
 	}
 
 	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_DATA,
-				  SOF_CTRL_TYPE_DATA_GET, scontrol->cmd);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_DATA,
+				      SOF_CTRL_TYPE_DATA_GET,
+				      scontrol->cmd);
+
 	size = data->size + sizeof(*data);
 	if (size > be->max) {
 		dev_err_ratelimited(sdev->dev, "error: DSP sent %zu bytes max is %d\n",
@@ -335,8 +344,10 @@ int snd_sof_bytes_put(struct snd_kcontrol *kcontrol,
 	memcpy(data, ucontrol->value.bytes.data, data->size);
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_DATA,
-				  SOF_CTRL_TYPE_DATA_SET, scontrol->cmd);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_DATA,
+				      SOF_CTRL_TYPE_DATA_SET,
+				      scontrol->cmd);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -418,8 +429,10 @@ int snd_sof_bytes_ext_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_DATA,
-				  SOF_CTRL_TYPE_DATA_SET, scontrol->cmd);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_DATA,
+				      SOF_CTRL_TYPE_DATA_SET,
+				      scontrol->cmd);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -466,9 +479,10 @@ int snd_sof_bytes_ext_get(struct snd_kcontrol *kcontrol,
 	cdata->data->abi = SOF_ABI_VERSION;
 
 	/* get all the component data from DSP */
-	ret = snd_sof_ipc_get_comp_data(sdev->ipc, scontrol,
-					SOF_IPC_COMP_GET_DATA,
-					SOF_CTRL_TYPE_DATA_GET, scontrol->cmd);
+	ret = snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+					    SOF_IPC_COMP_GET_DATA,
+					    SOF_CTRL_TYPE_DATA_GET,
+					    scontrol->cmd);
 
 	/* Prevent read of other kernel data or possibly corrupt response */
 	data_size = cdata->data->size + sizeof(const struct sof_abi_hdr);
