@@ -246,6 +246,7 @@ int snd_sof_enum_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
+
 	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
 				      SOF_IPC_COMP_SET_VALUE,
 				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
