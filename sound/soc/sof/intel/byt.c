@@ -48,6 +48,7 @@
 
 #define BYT_PANIC_OFFSET(x)	(((x) & GENMASK_ULL(47, 32)) >> 32)
 
+static int pm_state = 0;
 /*
  * Debug
  */
@@ -735,6 +736,67 @@ irq:
 	return ret;
 }
 
+int byt_suspend(struct snd_sof_dev *sdev, int state)
+{
+	dev_dbg(sdev->dev, "byt suspend\n");
+
+	if (pm_state == 1) {
+		dev_dbg(sdev->dev, "byt already in suspend\n");
+		return -EBUSY;
+	}
+
+	/* disable ipc interrupt */
+	snd_sof_dsp_update_bits64(sdev, BYT_DSP_BAR, SHIM_IMRX, 0x3, 0x1);
+	snd_sof_dsp_update_bits64(sdev, BYT_DSP_BAR, SHIM_IMRD, 0x3, 0x1);
+
+	/* power down dsp */
+	byt_reset(sdev);
+
+	/* disable bus/link interrupt */
+
+	dev_dbg(sdev->dev, "byt going to suspend\n");
+	pm_state = 1;
+
+	return 0;
+}
+
+int byt_resume(struct snd_sof_dev *sdev)
+{
+	dev_dbg(sdev->dev, "byt resume\n");
+
+	if (pm_state == 0) {
+		dev_dbg(sdev->dev, "byt already in resume\n");
+		return -EBUSY;
+	}
+
+	/* Reset controller */
+	/* take controller out of reset */
+	/* byt_run(sdev); */
+
+	/* enable ipc interrupt */
+	snd_sof_dsp_update_bits64(sdev, BYT_DSP_BAR, SHIM_IMRX, 0x3, 0x0);
+	snd_sof_dsp_update_bits64(sdev, BYT_DSP_BAR, SHIM_IMRD, 0x3, 0x0);
+
+	dev_dbg(sdev->dev, "byt going to resume\n");
+	pm_state = 0;
+
+	return 0;
+}
+
+int byt_runtime_suspend(struct snd_sof_dev *sdev, int state)
+{
+	dev_dbg(sdev->dev, "byt runtime suspend\n");
+
+	return byt_suspend(sdev, state);
+}
+
+int byt_runtime_resume(struct snd_sof_dev *sdev)
+{
+	dev_dbg(sdev->dev, "byt runtime resume\n");
+
+	return byt_resume(sdev);
+}
+
 /* baytrail ops */
 const struct snd_sof_dsp_ops sof_byt_ops = {
 	/* device init */
@@ -782,6 +844,12 @@ const struct snd_sof_dsp_ops sof_byt_ops = {
 	/* DAI drivers */
 	.drv = byt_dai,
 	.num_drv = 3, /* we have only 3 SSPs on byt*/
+
+	/* PM */
+	.suspend		= byt_suspend,
+	.resume			= byt_resume,
+	.runtime_suspend	= byt_runtime_suspend,
+	.runtime_resume		= byt_runtime_resume,
 };
 EXPORT_SYMBOL(sof_byt_ops);
 

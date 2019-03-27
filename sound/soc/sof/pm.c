@@ -259,7 +259,7 @@ static int sof_resume(struct device *dev, bool runtime_resume)
 	if (ret < 0) {
 		dev_err(sdev->dev,
 			"error: failed to power up DSP after resume\n");
-		return ret;
+		return 0;
 	}
 
 	/* load the firmware */
@@ -353,24 +353,40 @@ static int sof_suspend(struct device *dev, bool runtime_suspend)
 
 int snd_sof_runtime_suspend(struct device *dev)
 {
+	struct snd_sof_dev *sdev = dev_get_drvdata(dev);
+
+	dev_dbg(sdev->dev, "sof runtime suspend\n");
+
 	return sof_suspend(dev, true);
 }
 EXPORT_SYMBOL(snd_sof_runtime_suspend);
 
 int snd_sof_runtime_resume(struct device *dev)
 {
+	struct snd_sof_dev *sdev = dev_get_drvdata(dev);
+
+	dev_dbg(sdev->dev, "sof runtime resume\n");
+
 	return sof_resume(dev, true);
 }
 EXPORT_SYMBOL(snd_sof_runtime_resume);
 
 int snd_sof_resume(struct device *dev)
 {
+	struct snd_sof_dev *sdev = dev_get_drvdata(dev);
+
+	dev_dbg(sdev->dev, "sof resume\n");
+
 	return sof_resume(dev, false);
 }
 EXPORT_SYMBOL(snd_sof_resume);
 
 int snd_sof_suspend(struct device *dev)
 {
+	struct snd_sof_dev *sdev = dev_get_drvdata(dev);
+
+	dev_dbg(sdev->dev, "sof suspend\n");
+
 	return sof_suspend(dev, false);
 }
 EXPORT_SYMBOL(snd_sof_suspend);
