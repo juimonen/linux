@@ -230,6 +230,21 @@ static struct snd_soc_dai_link dailink[] = {
 		.no_pcm = 1,
 	},
 #endif
+	{
+		.name = "SSP1-Codec",
+		.id = 4,
+		.cpu_dai_name = "SSP1 Pin",
+		.platforms = platform_component,
+		.num_platforms = ARRAY_SIZE(platform_component),
+		.no_pcm = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
+						| SND_SOC_DAIFMT_CBS_CFS,
+		.nonatomic = true,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+	},
 };
 
 /* SoC card */

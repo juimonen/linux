@@ -55,7 +55,8 @@ static int ipc_pcm_params(struct snd_sof_widget *swidget, int dir)
 	memset(&pcm, 0, sizeof(pcm));
 
 	/* get runtime PCM params using widget's stream name */
-	spcm = snd_sof_find_spcm_name(sdev, swidget->widget->sname);
+	/* spcm = snd_sof_find_spcm_name(sdev, swidget->widget->sname);*/
+	spcm = snd_sof_find_spcm_name(sdev, "Low Latency Playback 0");
 	if (!spcm) {
 		dev_err(sdev->dev, "error: cannot find PCM for %s\n",
 			swidget->widget->name);
@@ -88,6 +89,8 @@ static int ipc_pcm_params(struct snd_sof_widget *swidget, int dir)
 		pcm.params.frame_fmt = SOF_IPC_FRAME_S32_LE;
 		break;
 	default:
+		dev_err(sdev->dev, "error: pcm params unknown format for %s\n",
+			swidget->widget->name);
 		return -EINVAL;
 	}
 
@@ -183,6 +186,49 @@ static int sof_keyword_dapm_event(struct snd_soc_dapm_widget *w,
 /* event handlers for keyword detect component */
 static const struct snd_soc_tplg_widget_events sof_kwd_events[] = {
 	{SOF_KEYWORD_DETECT_DAPM_EVENT, sof_keyword_dapm_event},
+};
+
+static int sof_echo_reference_dapm_event(struct snd_soc_dapm_widget *w,
+				  struct snd_kcontrol *k, int event)
+{
+	struct snd_sof_widget *swidget = w->dobj.private;
+	struct snd_sof_dev *sdev;
+	int ret = 0;
+
+	if (!swidget)
+		return 0;
+
+	sdev = swidget->sdev;
+
+	dev_dbg(sdev->dev, "received event %d for widget %s\n",
+		event, w->name);
+
+	/* process events */
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		dev_dbg(sdev->dev, "received event PRE_PMU\n");
+		ret = ipc_pcm_params(swidget, SOF_IPC_STREAM_PLAYBACK);
+		if (ret < 0) {
+			dev_err(sdev->dev,
+				"error: failed to set pcm params for widget %s\n",
+				swidget->widget->name);
+			break;
+		}
+
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		dev_dbg(sdev->dev, "received event POST_PMD\n");
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+/* event handlers for echo reference */
+static const struct snd_soc_tplg_widget_events sof_ec_events[] = {
+	{SOF_ECHO_REFERENCE_DAPM_EVENT, sof_echo_reference_dapm_event},
 };
 
 static inline int get_tlv_data(const int *p, int tlv[TLV_ITEMS])
@@ -1924,6 +1970,8 @@ static int sof_widget_bind_event(struct snd_sof_dev *sdev,
 {
 	struct sof_ipc_comp *ipc_comp;
 
+	dev_dbg(sdev->dev, "tplg: binding widget to event\n");
+
 	/* validate widget event type */
 	switch (event_type) {
 	case SOF_KEYWORD_DETECT_DAPM_EVENT:
@@ -1940,6 +1988,13 @@ static int sof_widget_bind_event(struct snd_sof_dev *sdev,
 						      sof_kwd_events,
 						      ARRAY_SIZE(sof_kwd_events),
 						      event_type);
+	case SOF_ECHO_REFERENCE_DAPM_EVENT:
+
+		return snd_soc_tplg_widget_bind_event(swidget->widget,
+						      sof_ec_events,
+						      ARRAY_SIZE(sof_ec_events),
+						      event_type);
+
 	default:
 		break;
 	}
