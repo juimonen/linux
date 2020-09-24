@@ -124,6 +124,8 @@ int snd_sof_volume_get(struct snd_kcontrol *kcontrol,
 		       struct snd_ctl_elem_value *ucontrol);
 int snd_sof_volume_put(struct snd_kcontrol *kcontrol,
 		       struct snd_ctl_elem_value *ucontrol);
+int snd_sof_volume_info(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_info *ucontrol);
 int snd_sof_switch_get(struct snd_kcontrol *kcontrol,
 		       struct snd_ctl_elem_value *ucontrol);
 int snd_sof_switch_put(struct snd_kcontrol *kcontrol,
@@ -132,10 +134,14 @@ int snd_sof_enum_get(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol);
 int snd_sof_enum_put(struct snd_kcontrol *kcontrol,
 		     struct snd_ctl_elem_value *ucontrol);
+int snd_sof_enum_info(struct snd_kcontrol *kcontrol,
+		      struct snd_ctl_elem_info *ucontrol);
 int snd_sof_bytes_get(struct snd_kcontrol *kcontrol,
 		      struct snd_ctl_elem_value *ucontrol);
 int snd_sof_bytes_put(struct snd_kcontrol *kcontrol,
 		      struct snd_ctl_elem_value *ucontrol);
+int snd_sof_bytes_info(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_info *ucontrol);
 int snd_sof_bytes_ext_put(struct snd_kcontrol *kcontrol,
 			  const unsigned int __user *binary_data,
 			  unsigned int size);

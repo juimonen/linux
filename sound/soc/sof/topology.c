@@ -3671,10 +3671,10 @@ static int sof_manifest(struct snd_soc_component *scomp, int index,
 
 /* vendor specific kcontrol handlers available for binding */
 static const struct snd_soc_tplg_kcontrol_ops sof_io_ops[] = {
-	{SOF_TPLG_KCTL_VOL_ID, snd_sof_volume_get, snd_sof_volume_put},
-	{SOF_TPLG_KCTL_BYTES_ID, snd_sof_bytes_get, snd_sof_bytes_put},
-	{SOF_TPLG_KCTL_ENUM_ID, snd_sof_enum_get, snd_sof_enum_put},
-	{SOF_TPLG_KCTL_SWITCH_ID, snd_sof_switch_get, snd_sof_switch_put},
+	{SOF_TPLG_KCTL_VOL_ID, snd_sof_volume_get, snd_sof_volume_put, snd_sof_volume_info},
+	{SOF_TPLG_KCTL_BYTES_ID, snd_sof_bytes_get, snd_sof_bytes_put, snd_sof_bytes_info},
+	{SOF_TPLG_KCTL_ENUM_ID, snd_sof_enum_get, snd_sof_enum_put, snd_sof_enum_info},
+	{SOF_TPLG_KCTL_SWITCH_ID, snd_sof_switch_get, snd_sof_switch_put, snd_sof_volume_info},
 };
 
 /* vendor specific bytes ext handlers available for binding */

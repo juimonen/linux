@@ -114,6 +114,35 @@ int snd_sof_volume_put(struct snd_kcontrol *kcontrol,
 	return change;
 }
 
+int snd_sof_volume_info(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_info *uinfo)
+{
+	struct soc_mixer_control *sm =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	struct snd_sof_control *scontrol = sm->dobj.private;
+	struct snd_soc_component *scomp = scontrol->scomp;
+	unsigned int channels = scontrol->num_channels;
+
+	int platform_max;
+
+	dev_dbg(scomp->dev,
+		"jaska volume info channels %d\n", channels);
+
+	if (!sm->platform_max)
+		sm->platform_max = sm->max;
+	platform_max = sm->platform_max;
+
+	if (platform_max == 1 && !strstr(kcontrol->id.name, " Volume"))
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_BOOLEAN;
+	else
+		uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+
+	uinfo->count = channels;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = platform_max - sm->min;
+	return 0;
+}
+
 int snd_sof_switch_get(struct snd_kcontrol *kcontrol,
 		       struct snd_ctl_elem_value *ucontrol)
 {
@@ -488,4 +517,25 @@ int snd_sof_bytes_ext_get(struct snd_kcontrol *kcontrol,
 		return -EFAULT;
 
 	return 0;
+}
+
+int snd_sof_bytes_info(struct snd_kcontrol *kcontrol,
+		       struct snd_ctl_elem_info *uinfo)
+{
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct soc_bytes *params = (void *)kcontrol->private_value;
+
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
+	uinfo->count = params->num_regs * component->val_bytes;
+
+	return 0;
+}
+
+int snd_sof_enum_info(struct snd_kcontrol *kcontrol,
+		      struct snd_ctl_elem_info *uinfo)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+
+	return snd_ctl_enum_info(uinfo, e->shift_l == e->shift_r ? 1 : 2,
+				 e->items, e->texts);
 }
