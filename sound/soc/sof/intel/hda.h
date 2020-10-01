@@ -631,6 +631,7 @@ int hda_cl_copy_fw(struct snd_sof_dev *sdev, struct hdac_ext_stream *stream);
 struct hdac_ext_stream *hda_cl_stream_prepare(struct snd_sof_dev *sdev, unsigned int format,
 					      unsigned int size, struct snd_dma_buffer *dmab,
 					      int direction);
+int hda_dsp_cl_init(struct snd_sof_dev *sdev, int stream_tag);
 int hda_cl_cleanup(struct snd_sof_dev *sdev, struct snd_dma_buffer *dmab,
 		   struct hdac_ext_stream *stream);
 #define HDA_CL_STREAM_FORMAT 0x40

@@ -170,6 +170,7 @@ struct snd_sof_dsp_ops {
 	int (*fw_ext_man_parse)(struct snd_sof_dev *sof_dev,
 				const struct firmware *fw); /* optional */
 
+	int (*cl_dsp_init)(struct snd_sof_dev *sof_dev, int stream_tag); /* optional */
 	/*
 	 * FW ready checks for ABI compatibility and creates
 	 * memory windows at first boot

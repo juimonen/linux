@@ -130,6 +130,15 @@ static inline int snd_sof_dsp_parse_platform_ext_manifest(struct snd_sof_dev *sd
 	return 0;
 }
 
+/* code loader init */
+static inline int snd_sof_dsp_cl_init(struct snd_sof_dev *sdev, int stream_tag)
+{
+	if (sof_ops(sdev)->cl_dsp_init)
+		return sof_ops(sdev)->cl_dsp_init(sdev, stream_tag);
+
+	return 0;
+}
+
 /* misc */
 
 /**
