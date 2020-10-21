@@ -160,6 +160,7 @@ struct snd_sof_dsp_ops {
 			   struct snd_sof_mod_hdr *hdr); /* optional */
 	int (*fw_ext_man_parse)(struct snd_sof_dev *sof_dev,
 				const struct firmware *fw); /* optional */
+
 	/*
 	 * FW ready checks for ABI compatibility and creates
 	 * memory windows at first boot

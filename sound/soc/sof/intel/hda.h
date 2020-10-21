@@ -13,6 +13,7 @@
 
 #include <linux/soundwire/sdw.h>
 #include <linux/soundwire/sdw_intel.h>
+#include <sound/sof/cavs_ext_manifest.h>
 #include <sound/compress_driver.h>
 #include <sound/hda_codec.h>
 #include <sound/hdaudio_ext.h>
@@ -454,6 +455,10 @@ struct sof_intel_hda_dev {
 
 	/* FW clock config, 0:HPRO, 1:LPRO */
 	bool clk_config_lpro;
+
+	/* cavs fw module info */
+	struct ModuleEntry *cavs_fw_module_entry;
+	int fw_module_num;
 };
 
 static inline struct hdac_bus *sof_to_bus(struct snd_sof_dev *s)

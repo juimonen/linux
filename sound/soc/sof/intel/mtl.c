@@ -616,6 +616,8 @@ const struct snd_sof_dsp_ops sof_mtl_ops = {
 	.probe_pointer	= hda_probe_compr_pointer,
 #endif
 
+	.fw_ext_man_parse = mtl_fw_ext_man_parse,
+
 	/* firmware loading */
 	.load_firmware = snd_sof_load_firmware_raw,
 
