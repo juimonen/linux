@@ -157,6 +157,8 @@ static int sof_probe_continue(struct snd_sof_dev *sdev)
 		goto dsp_err;
 	}
 
+	dev_dbg(sdev->dev, "SOF IPC version: %d\n", snd_sof_dsp_get_ipc_version(sdev));
+
 	/* set up platform component driver */
 	snd_sof_new_platform_drv(sdev);
 

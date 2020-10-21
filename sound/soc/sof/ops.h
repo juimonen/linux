@@ -337,6 +337,14 @@ static inline bool snd_sof_dsp_check_ipc_irq(struct snd_sof_dev *sdev)
 	return false;
 }
 
+static inline u32 snd_sof_dsp_get_ipc_version(struct snd_sof_dev *sdev)
+{
+	if (sof_ops(sdev)->get_ipc_version)
+		return sof_ops(sdev)->get_ipc_version(sdev);
+
+	return SOF_IPC_VERSION_1;
+}
+
 /* host DMA trace */
 static inline int snd_sof_dma_trace_init(struct snd_sof_dev *sdev,
 					 u32 *stream_tag)

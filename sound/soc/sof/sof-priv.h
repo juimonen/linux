@@ -62,6 +62,12 @@ extern int sof_core_debug;
 /* So far the primary core on all DSPs has ID 0 */
 #define SOF_DSP_PRIMARY_CORE 0
 
+enum sof_intel_ipc_version {
+	SOF_IPC_VERSION_1,
+	SOF_IPC_VERSION_2,
+	SOF_IPC_VERSION_MAX,
+};
+
 /* DSP power state */
 enum sof_dsp_power_states {
 	SOF_DSP_PM_D0,
@@ -153,6 +159,7 @@ struct snd_sof_dsp_ops {
 	int (*send_msg)(struct snd_sof_dev *sof_dev,
 			struct snd_sof_ipc_msg *msg); /* mandatory */
 	bool (*check_ipc_irq)(struct snd_sof_dev *sdev); /* optional */
+	u32 (*get_ipc_version)(struct snd_sof_dev *sdev); /* optional */
 
 	/* FW loading */
 	int (*load_firmware)(struct snd_sof_dev *sof_dev); /* mandatory */
