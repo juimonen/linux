@@ -879,10 +879,11 @@ static int sof_pcm_ack(struct snd_soc_component *component,
 	return snd_sof_pcm_platform_ack(sdev, substream);
 }
 
-void snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
+int snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
 {
 	struct snd_soc_component_driver *pd = &sdev->plat_drv;
 	struct snd_sof_pdata *plat_data = sdev->pdata;
+	u32 ipc_version = snd_sof_dsp_get_ipc_version(sdev);
 	const char *drv_name;
 
 	drv_name = plat_data->machine->drv_name;
@@ -892,10 +893,19 @@ void snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
 	pd->remove = sof_pcm_remove;
 	pd->open = sof_pcm_open;
 	pd->close = sof_pcm_close;
-	pd->hw_params = sof_pcm_hw_params;
 	pd->prepare = sof_pcm_prepare;
-	pd->hw_free = sof_pcm_hw_free;
-	pd->trigger = sof_pcm_trigger;
+
+	switch (ipc_version) {
+	case SOF_IPC_VERSION_1:
+		pd->hw_params = sof_pcm_hw_params;
+		pd->hw_free = sof_pcm_hw_free;
+		pd->trigger = sof_pcm_trigger;
+		break;
+	default:
+		dev_err(sdev->dev, "unsupported ipc version\n");
+		return -EINVAL;
+	}
+
 	pd->pointer = sof_pcm_pointer;
 	pd->ack = sof_pcm_ack;
 
@@ -915,4 +925,6 @@ void snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
 
 	 /* increment module refcount when a pcm is opened */
 	pd->module_get_upon_open = 1;
+
+	return 0;
 }

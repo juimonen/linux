@@ -3572,7 +3572,9 @@ static struct snd_soc_tplg_ops sof_tplg_ops = {
 
 int snd_sof_load_topology(struct snd_soc_component *scomp, const char *file)
 {
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
 	const struct firmware *fw;
+	int ipc_version = snd_sof_dsp_get_ipc_version(sdev);
 	int ret;
 
 	dev_dbg(scomp->dev, "loading topology:%s\n", file);
@@ -3586,11 +3588,19 @@ int snd_sof_load_topology(struct snd_soc_component *scomp, const char *file)
 		return ret;
 	}
 
-	ret = snd_soc_tplg_component_load(scomp, &sof_tplg_ops, fw);
-	if (ret < 0) {
-		dev_err(scomp->dev, "error: tplg component load failed %d\n",
-			ret);
+	switch (ipc_version) {
+	case SOF_IPC_VERSION_1:
+		ret = snd_soc_tplg_component_load(scomp, &sof_tplg_ops, fw);
+		if (ret < 0) {
+			dev_err(scomp->dev, "error: tplg component load failed %d\n",
+				ret);
+			ret = -EINVAL;
+		}
+		break;
+	default:
+		dev_err(scomp->dev, "error: unsupported ipc version %d\n", ipc_version);
 		ret = -EINVAL;
+		break;
 	}
 
 	release_firmware(fw);

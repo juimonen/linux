@@ -507,7 +507,7 @@ int snd_sof_dsp_power_down_notify(struct snd_sof_dev *sdev);
 int snd_sof_prepare(struct device *dev);
 void snd_sof_complete(struct device *dev);
 
-void snd_sof_new_platform_drv(struct snd_sof_dev *sdev);
+int snd_sof_new_platform_drv(struct snd_sof_dev *sdev);
 
 int snd_sof_create_page_table(struct device *dev,
 			      struct snd_dma_buffer *dmab,
