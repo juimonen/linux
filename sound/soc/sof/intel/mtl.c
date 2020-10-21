@@ -25,6 +25,11 @@ static const struct snd_sof_debugfs_map mtl_dsp_debugfs[] = {
 static void mtl_ipc_host_done(struct snd_sof_dev *sdev);
 static void mtl_ipc_dsp_done(struct snd_sof_dev *sdev);
 
+static u32 mtl_dsp_get_ipc_version(struct snd_sof_dev *sdev)
+{
+	return SOF_IPC_VERSION_2;
+}
+
 /* Check if an IPC IRQ occurred */
 bool mtl_dsp_check_ipc_irq(struct snd_sof_dev *sdev)
 {
@@ -583,6 +588,7 @@ const struct snd_sof_dsp_ops sof_mtl_ops = {
 	.get_mailbox_offset = hda_dsp_ipc_get_mailbox_offset,
 	.get_window_offset = hda_dsp_ipc_get_window_offset,
 	.check_ipc_irq	= mtl_dsp_check_ipc_irq,
+	.get_ipc_version = mtl_dsp_get_ipc_version,
 
 	.ipc_msg_data	= hda_ipc_msg_data,
 	.ipc_pcm_params	= hda_ipc_pcm_params,
