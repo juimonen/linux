@@ -10,6 +10,7 @@
 
 #include <sound/pcm_params.h>
 #include <sound/hdaudio_ext.h>
+#include "../ops.h"
 #include "../sof-priv.h"
 #include "../sof-audio.h"
 #include "hda.h"
@@ -221,6 +222,8 @@ static int hda_link_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params,
 			      struct snd_soc_dai *dai)
 {
+	struct snd_sof_dev *sdev =
+				snd_soc_component_get_drvdata(dai->component);
 	struct hdac_stream *hstream = substream->runtime->private_data;
 	struct hdac_bus *bus = hstream->bus;
 	struct hdac_ext_stream *link_dev;
@@ -252,10 +255,13 @@ static int hda_link_hw_params(struct snd_pcm_substream *substream,
 	else
 		w = dai->capture_widget;
 
-	/* set up the DAI widget and send the DAI_CONFIG with the new tag */
-	ret = hda_link_dai_widget_update(hda_stream, w, stream_tag - 1, true);
-	if (ret < 0)
-		return ret;
+	/* update the DSP with the new tag */
+	if (snd_sof_dsp_get_ipc_version(sdev) == SOF_IPC_VERSION_1) {
+		/* set up the DAI widget and send the DAI_CONFIG with the new tag */
+		ret = hda_link_dai_widget_update(hda_stream, w, stream_tag - 1, true);
+		if (ret < 0)
+			return ret;
+	}
 
 	link = snd_hdac_ext_bus_get_link(bus, codec_dai->component->name);
 	if (!link)

@@ -400,6 +400,7 @@ static int hda_dsp_update_d0i3c_register(struct snd_sof_dev *sdev, u8 value)
 static int hda_dsp_set_D0_state(struct snd_sof_dev *sdev,
 				const struct sof_dsp_power_state *target_state)
 {
+	struct sof_intel_hda_dev *hdev = sdev->pdata->hw_pdata;
 	u32 flags = 0;
 	int ret;
 	u8 value = 0;
@@ -453,11 +454,13 @@ static int hda_dsp_set_D0_state(struct snd_sof_dev *sdev,
 	 * If this IPC fails, revert the D0I3C register update in order
 	 * to prevent partial state change.
 	 */
-	ret = hda_dsp_send_pm_gate_ipc(sdev, flags);
-	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: PM_GATE ipc error %d\n", ret);
-		goto revert;
+	if (snd_sof_dsp_get_ipc_version(sdev) == SOF_IPC_VERSION_1) {
+		ret = hda_dsp_send_pm_gate_ipc(sdev, flags);
+		if (ret < 0) {
+			dev_err(sdev->dev,
+				"error: PM_GATE ipc error %d\n", ret);
+			goto revert;
+		}
 	}
 
 	return ret;
