@@ -33,7 +33,8 @@
  *     FW content
  *-------------------
  *********************************************************************/
-int mtl_fw_ext_man_parse(struct snd_sof_dev *sdev, const struct firmware *fw)
+int snd_sof_fw_ext_man_parse_cavs(struct snd_sof_dev *sdev,
+				  const struct firmware *fw)
 {
 	struct sof_ipc4_fw_modules *module_entry;
 	struct CavsFwBinaryHeader *fw_header;

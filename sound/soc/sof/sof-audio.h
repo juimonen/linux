@@ -18,6 +18,7 @@
 #include <sound/sof/stream.h> /* needs to be included before control.h */
 #include <sound/sof/control.h>
 #include <sound/sof/dai.h>
+#include <sound/sof/header2.h>
 #include <sound/sof/topology.h>
 #include "sof-priv.h"
 

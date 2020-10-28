@@ -13,6 +13,8 @@
 #include "../ops.h"
 #include "hda.h"
 #include "hda-ipc.h"
+#include "ipc4-intel.h"
+#include "../ipc4.h"
 #include "../sof-audio.h"
 #include "mtl.h"
 
@@ -57,35 +59,15 @@ out:
 
 int mtl_ipc_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 {
-/* TODO: Fix compact IPC later */
-#if 0
 
 	struct sof_intel_hda_dev *hdev = sdev->pdata->hw_pdata;
-	struct sof_ipc_cmd_hdr *hdr;
-	u32 dr = 0;
-	u32 dd = 0;
-
-	/*
-	 * Currently the only compact IPC supported is the PM_GATE
-	 * IPC which is used for transitioning the DSP between the
-	 * D0I0 and D0I3 states. And these are sent only during the
-	 * set_power_state() op. Therefore, there will never be a case
-	 * that a compact IPC results in the DSP exiting D0I3 without
-	 * the host and FW being in sync.
-	 */
-	if (cnl_compact_ipc_compress(msg, &dr, &dd)) {
-		/* send the message via IPC registers */
-		snd_sof_dsp_write(sdev, HDA_DSP_BAR, CNL_DSP_REG_HIPCIDD,
-				  dd);
-		snd_sof_dsp_write(sdev, HDA_DSP_BAR, CNL_DSP_REG_HIPCIDR,
-				  CNL_DSP_REG_HIPCIDR_BUSY | dr);
-		return 0;
-	}
-#endif
 
 	/* send the message via mailbox */
 	sof_mailbox_write(sdev, sdev->host_box.offset, msg->msg_data, msg->msg_size);
-	snd_sof_dsp_write(sdev, HDA_DSP_BAR, MTL_DSP_REG_HfIPCxIDR, MTL_DSP_REG_HfIPCxIDR_BUSY);
+	snd_sof_dsp_write(sdev, HDA_DSP_BAR, MTL_DSP_REG_HfIPCxIDDy,
+			msg->extension);
+	snd_sof_dsp_write(sdev, HDA_DSP_BAR, MTL_DSP_REG_HfIPCxIDR,
+			msg->header | MTL_DSP_REG_HfIPCxIDR_BUSY);
 
 /* TODO: Fix D0i3 in S0 later */
 #if 0
@@ -426,13 +408,7 @@ irqreturn_t mtl_ipc_irq_thread(int irq, void *context)
 					MTL_DSP_REG_HfIPCxCTL_DONE, 0);
 
 		spin_lock_irq(&sdev->ipc_lock);
-
-		/* handle immediate reply from DSP core */
-		hda_dsp_ipc_get_reply(sdev);
-		snd_sof_ipc_reply(sdev, msg);
-
 		mtl_ipc_dsp_done(sdev);
-
 		spin_unlock_irq(&sdev->ipc_lock);
 
 		ipc_irq = true;
@@ -446,8 +422,14 @@ irqreturn_t mtl_ipc_irq_thread(int irq, void *context)
 		dev_dbg(sdev->dev, "ipc: firmware initiated, msg:0x%x, msg_ext:0x%x\n",
 			msg, msg_ext);
 
-		/* handle messages from DSP */
-		snd_sof_ipc4_msgs_rx(sdev, msg, msg_ext);
+		/*
+		 * ace fw sends a new fw ipc message to host to
+		 * notify the status of the last host ipc message
+		 */
+		if (hipctdr & SOF_IPC4_GLB_NOTIFY_DIR_MASK)
+			sof_ipc4_check_reply_status(sdev, msg);
+		else
+			snd_sof_ipc4_msgs_rx(sdev, msg, msg_ext);
 
 		mtl_ipc_host_done(sdev);
 
@@ -622,7 +604,7 @@ const struct snd_sof_dsp_ops sof_mtl_ops = {
 	.probe_pointer	= hda_probe_compr_pointer,
 #endif
 
-	.fw_ext_man_parse = mtl_fw_ext_man_parse,
+	.fw_ext_man_parse = snd_sof_fw_ext_man_parse_cavs,
 
 	/* firmware loading */
 	.load_firmware = snd_sof_load_firmware_raw,
