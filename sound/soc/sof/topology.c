@@ -3557,6 +3557,7 @@ static int sof_route_load(struct snd_soc_component *scomp, int index,
 		sroute->private = connect;
 		sroute->src_widget = source_swidget;
 		sroute->sink_widget = sink_swidget;
+		sroute->setup = true;
 
 		/* add route to route list */
 		list_add(&sroute->list, &sdev->route_list);
@@ -3675,7 +3676,13 @@ static int sof_complete(struct snd_soc_component *scomp)
 	 * cache initial values of SOF kcontrols by reading DSP value over
 	 * IPC. It may be overwritten by alsa-mixer after booting up
 	 */
-	return snd_sof_cache_kcontrol_val(scomp);
+
+	ret = snd_sof_cache_kcontrol_val(scomp);
+	if (ret < 0)
+		return ret;
+
+	/* Free all widgets. They will be set up as needed when a PCM is started */
+	return sof_widgets_free_all(scomp);
 }
 
 /* manifest - optional to inform component of manifest */
