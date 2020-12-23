@@ -761,7 +761,7 @@ extern struct snd_soc_dai_driver skl_dai[];
  */
 extern const struct snd_sof_dsp_ops sof_apl_ops;
 extern const struct snd_sof_dsp_ops sof_cnl_ops;
-extern const struct snd_sof_dsp_ops sof_tgl_ops;
+extern const struct snd_sof_dsp_ops sof_tgl_ops[];
 extern const struct snd_sof_dsp_ops sof_icl_ops;
 extern const struct snd_sof_dsp_ops sof_mtl_ops;
 

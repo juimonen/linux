@@ -11,11 +11,16 @@
 #ifndef __SOF_IPC4_INTEL_H
 #define __SOF_IPC4_INTEL_H
 
+#define IPC4_CAVS_MBOX_UPLINK_SIZE      0x1000
+#define IPC4_CAVS_MBOX_DOWNLINK_SIZE    0x1000
+
 int snd_sof_fw_ext_man_parse_cavs(struct snd_sof_dev *sdev,
 				  const struct firmware *fw);
 
 irqreturn_t sof_ipc4_cavs_irq_thread(int irq, void *context);
 int sof_ipc4_cavs_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg);
 u32 sof_ipc4_cavs_dsp_get_ipc_version(struct snd_sof_dev *sdev);
+
+int sof_cavs_fw_ready(struct snd_sof_dev *sdev, u32 msg_id);
 
 #endif

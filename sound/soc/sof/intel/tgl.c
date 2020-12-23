@@ -12,6 +12,8 @@
 #include "../ops.h"
 #include "hda.h"
 #include "hda-ipc.h"
+#include "ipc4-intel.h"
+#include "../ipc4.h"
 #include "../sof-audio.h"
 
 static const struct snd_sof_debugfs_map tgl_dsp_debugfs[] = {
@@ -21,7 +23,8 @@ static const struct snd_sof_debugfs_map tgl_dsp_debugfs[] = {
 };
 
 /* Tigerlake ops */
-const struct snd_sof_dsp_ops sof_tgl_ops = {
+const struct snd_sof_dsp_ops sof_tgl_ops[] = {
+{
 	/* probe/remove/shutdown */
 	.probe		= hda_dsp_probe,
 	.remove		= hda_dsp_remove,
@@ -125,6 +128,109 @@ const struct snd_sof_dsp_ops sof_tgl_ops = {
 			SNDRV_PCM_INFO_NO_PERIOD_WAKEUP,
 
 	.arch_ops = &sof_xtensa_arch_ops,
+},
+{
+	/* probe and remove */
+	.probe		= hda_dsp_probe,
+	.remove		= hda_dsp_remove,
+
+	/* Register IO */
+	.write		= sof_io_write,
+	.read		= sof_io_read,
+	.write64	= sof_io_write64,
+	.read64		= sof_io_read64,
+
+	/* Block IO */
+	.block_read = sof_block_read,
+	.block_write	= sof_block_write,
+
+	/* doorbell */
+	.irq_thread = sof_ipc4_cavs_irq_thread,
+
+	/* ipc */
+	.send_msg	= sof_ipc4_cavs_send_msg,
+	.fw_ready	= sof_cavs_fw_ready,
+	.get_mailbox_offset = hda_dsp_ipc_get_mailbox_offset,
+	.get_window_offset = hda_dsp_ipc_get_window_offset,
+	.check_ipc_irq = hda_dsp_check_ipc_irq,
+	.get_ipc_version = sof_ipc4_cavs_dsp_get_ipc_version,
+
+	.ipc_msg_data	= hda_ipc_msg_data,
+	.ipc_pcm_params = hda_ipc_pcm_params,
+
+	/* machine driver */
+	.machine_select = hda_machine_select,
+	.machine_register = sof_machine_register,
+	.machine_unregister = sof_machine_unregister,
+	.set_mach_params = hda_set_mach_params,
+
+	/* debug */
+	.debug_map	= tgl_dsp_debugfs,
+	.debug_map_count	= ARRAY_SIZE(tgl_dsp_debugfs),
+	.dbg_dump	= hda_dsp_dump,
+	.ipc_dump	= cnl_ipc_dump,
+
+	/* stream callbacks */
+	.pcm_open	= hda_dsp_pcm_open,
+	.pcm_close	= hda_dsp_pcm_close,
+	.pcm_hw_params	= hda_dsp_pcm_hw_params,
+	.pcm_hw_free	= hda_dsp_stream_hw_free,
+	.pcm_trigger	= hda_dsp_pcm_trigger,
+	.pcm_pointer	= hda_dsp_pcm_pointer,
+
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_PROBES)
+	/* probe callbacks */
+	.probe_assign	= hda_probe_compr_assign,
+	.probe_free = hda_probe_compr_free,
+	.probe_set_params	= hda_probe_compr_set_params,
+	.probe_trigger	= hda_probe_compr_trigger,
+	.probe_pointer	= hda_probe_compr_pointer,
+#endif
+
+	.fw_ext_man_parse = snd_sof_fw_ext_man_parse_cavs,
+
+	/* firmware loading */
+	.load_firmware = snd_sof_load_firmware_raw,
+
+	/* pre/post fw run */
+	.pre_fw_run = hda_dsp_pre_fw_run,
+	.post_fw_run = hda_dsp_post_fw_run,
+
+	/* dsp core power up/down */
+	.core_power_up = hda_dsp_enable_core,
+	.core_power_down = hda_dsp_core_reset_power_down,
+
+	/* firmware run */
+	.cl_dsp_init = hda_dsp_cl_init,
+	.run = hda_dsp_cl_boot_firmware,
+
+	/* trace callback */
+	.trace_init = hda_dsp_trace_init,
+	.trace_release = hda_dsp_trace_release,
+	.trace_trigger = hda_dsp_trace_trigger,
+
+	/* DAI drivers */
+	.drv		= skl_dai,
+	.num_drv	= SOF_SKL_NUM_DAIS,
+
+	/* PM */
+	.suspend		= hda_dsp_suspend,
+	.resume			= hda_dsp_resume,
+	.runtime_suspend	= hda_dsp_runtime_suspend,
+	.runtime_resume		= hda_dsp_runtime_resume,
+	.runtime_idle		= hda_dsp_runtime_idle,
+	.set_hw_params_upon_resume = hda_dsp_set_hw_params_upon_resume,
+	.set_power_state	= hda_dsp_set_power_state,
+
+	/* ALSA HW info flags */
+	.hw_info =	SNDRV_PCM_INFO_MMAP |
+			SNDRV_PCM_INFO_MMAP_VALID |
+			SNDRV_PCM_INFO_INTERLEAVED |
+			SNDRV_PCM_INFO_PAUSE |
+			SNDRV_PCM_INFO_NO_PERIOD_WAKEUP,
+
+	.arch_ops = &sof_xtensa_arch_ops,
+}
 };
 EXPORT_SYMBOL_NS(sof_tgl_ops, SND_SOC_SOF_INTEL_HDA_COMMON);
 

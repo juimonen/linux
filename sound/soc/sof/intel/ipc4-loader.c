@@ -14,6 +14,9 @@
 #include <sound/sof/cavs_ext_manifest.h>
 #include "../sof-audio.h"
 #include "hda.h"
+#include "ipc4-intel.h"
+#include "../ops.h"
+#include "../ipc4.h"
 
 /*********************************************************************
  *     css_manifest hdr
@@ -103,5 +106,42 @@ int snd_sof_fw_ext_man_parse_cavs(struct snd_sof_dev *sdev,
 	}
 
 	return fw_offset;
+}
+
+int sof_cavs_fw_ready(struct snd_sof_dev *sdev, u32 msg_id)
+{
+	int inbox_offset, inbox_size;
+	int outbox_offset, outbox_size;
+
+	/* mailbox must be on 4k boundary */
+	inbox_offset = snd_sof_dsp_get_mailbox_offset(sdev);
+	if (inbox_offset < 0) {
+		dev_err(sdev->dev, "error: have no mailbox offset\n");
+		return inbox_offset;
+	}
+
+	dev_dbg(sdev->dev, "ipc: DSP is ready 0x%8.8x offset 0x%x\n",
+		msg_id, inbox_offset);
+
+	/* no need to re-check version/ABI for subsequent boots */
+	if (!sdev->first_boot)
+		return 0;
+
+	inbox_size = IPC4_CAVS_MBOX_UPLINK_SIZE;
+	outbox_offset = snd_sof_dsp_get_window_offset(sdev, 1);
+	outbox_size = IPC4_CAVS_MBOX_DOWNLINK_SIZE;
+
+	sdev->dsp_box.offset = inbox_offset;
+	sdev->dsp_box.size = inbox_size;
+	sdev->host_box.offset = outbox_offset;
+	sdev->host_box.size = outbox_size;
+
+	dev_dbg(sdev->dev, " mailbox upstream 0x%x - size 0x%x\n",
+		inbox_offset, inbox_size);
+	dev_dbg(sdev->dev, " mailbox downstream 0x%x - size 0x%x\n",
+		outbox_offset, outbox_size);
+
+
+	return 0;
 }
 

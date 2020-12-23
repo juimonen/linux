@@ -33,7 +33,7 @@ static const struct sof_dev_desc tgl_desc = {
 	.default_tplg_path = "intel/sof-tplg",
 	.default_fw_filename = "sof-tgl.ri",
 	.nocodec_tplg_filename = "sof-tgl-nocodec.tplg",
-	.ops = &sof_tgl_ops,
+	.ops = sof_tgl_ops,
 };
 
 static const struct sof_dev_desc tglh_desc = {
@@ -50,7 +50,7 @@ static const struct sof_dev_desc tglh_desc = {
 	.default_tplg_path = "intel/sof-tplg",
 	.default_fw_filename = "sof-tgl-h.ri",
 	.nocodec_tplg_filename = "sof-tgl-nocodec.tplg",
-	.ops = &sof_tgl_ops,
+	.ops = sof_tgl_ops,
 };
 
 static const struct sof_dev_desc ehl_desc = {
@@ -66,7 +66,7 @@ static const struct sof_dev_desc ehl_desc = {
 	.default_tplg_path = "intel/sof-tplg",
 	.default_fw_filename = "sof-ehl.ri",
 	.nocodec_tplg_filename = "sof-ehl-nocodec.tplg",
-	.ops = &sof_tgl_ops,
+	.ops = sof_tgl_ops,
 };
 
 static const struct sof_dev_desc adls_desc = {
@@ -83,7 +83,7 @@ static const struct sof_dev_desc adls_desc = {
 	.default_tplg_path = "intel/sof-tplg",
 	.default_fw_filename = "sof-adl-s.ri",
 	.nocodec_tplg_filename = "sof-adl-nocodec.tplg",
-	.ops = &sof_tgl_ops,
+	.ops = sof_tgl_ops,
 };
 
 static const struct sof_dev_desc adl_desc = {
@@ -99,7 +99,7 @@ static const struct sof_dev_desc adl_desc = {
 	.default_tplg_path = "intel/sof-tplg",
 	.default_fw_filename = "sof-adl.ri",
 	.nocodec_tplg_filename = "sof-adl-nocodec.tplg",
-	.ops = &sof_tgl_ops,
+	.ops = sof_tgl_ops,
 };
 
 /* PCI IDs */
