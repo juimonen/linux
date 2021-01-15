@@ -293,6 +293,12 @@ struct snd_sof_dsp_ops {
 	void (*set_mach_params)(const struct snd_soc_acpi_mach *mach,
 				struct snd_sof_dev *sdev); /* optional */
 
+	/* ipc4 module ops */
+	int (*get_module_config)(struct snd_sof_dev *sdev,
+				 struct snd_pcm_hw_params *params,
+				 struct sof_ipc_pcm_params *ipc_params,
+				 void *pdata);/* optional */
+
 	/* DAI ops */
 	struct snd_soc_dai_driver *drv;
 	int num_drv;

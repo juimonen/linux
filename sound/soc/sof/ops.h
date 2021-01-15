@@ -551,6 +551,17 @@ snd_sof_set_mach_params(const struct snd_soc_acpi_mach *mach,
 		sof_ops(sdev)->set_mach_params(mach, sdev);
 }
 
+static inline int sof_get_module_config(struct snd_sof_dev *sdev,
+					struct snd_pcm_hw_params *params,
+					struct sof_ipc_pcm_params *ipc_params,
+					void *pdata)
+{
+	if (sof_ops(sdev) && sof_ops(sdev)->get_module_config)
+		return sof_ops(sdev)->get_module_config(sdev, params, ipc_params, pdata);
+
+	return 0;
+}
+
 static inline const struct snd_sof_dsp_ops
 *sof_get_ops(const struct sof_dev_desc *d,
 	     const struct sof_ops_table mach_ops[], int asize)
