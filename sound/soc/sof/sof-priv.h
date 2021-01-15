@@ -47,6 +47,8 @@ extern int sof_core_debug;
 #define SOF_IPC_DSP_REPLY		0
 #define SOF_IPC_HOST_REPLY		1
 
+#define SOF_MODULE_NAME_LEN		16
+
 /* convenience constructor for DAI driver streams */
 #define SOF_DAI_STREAM(sname, scmin, scmax, srates, sfmt) \
 	{.stream_name = sname, .channels_min = scmin, .channels_max = scmax, \
@@ -391,6 +393,17 @@ enum snd_sof_fw_state {
 	SOF_FW_BOOT_COMPLETE,
 };
 
+struct sof_ipc4_fw_modules {
+	char name[SOF_MODULE_NAME_LEN];
+	u32	id;
+	u8 uuid[UUID_SIZE];
+	u32 type;
+	u32	*instance_id; /* bit array */
+	u16 instance_max_count;
+	u32 bss_size;
+	void *private;
+};
+
 /*
  * SOF Device Level.
  */
@@ -464,6 +477,10 @@ struct snd_sof_dev {
 
 	/* FW configuration */
 	struct sof_ipc_window *info_window;
+
+	/* FW module info */
+	int fw_module_num;
+	struct sof_ipc4_fw_modules *fw_modules;
 
 	/* IPC timeouts in ms */
 	int ipc_timeout;

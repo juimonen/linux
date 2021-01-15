@@ -35,10 +35,10 @@
  *********************************************************************/
 int mtl_fw_ext_man_parse(struct snd_sof_dev *sdev, const struct firmware *fw)
 {
-	struct sof_intel_hda_dev *hdev = sdev->pdata->hw_pdata;
+	struct sof_ipc4_fw_modules *module_entry;
 	struct CavsFwBinaryHeader *fw_header;
 	struct cavs_ext_manifest_hdr *hdr;
-	struct ModuleEntry *module_entry;
+	struct ModuleConfig *fm_config;
 	struct ModuleEntry *fm_entry;
 	int fw_offset;
 	int i;
@@ -59,26 +59,46 @@ int mtl_fw_ext_man_parse(struct snd_sof_dev *sdev, const struct firmware *fw)
 
 	fw_header = (struct CavsFwBinaryHeader *)(fw->data + fw_offset + CAVS18_FW_HDR_OFFSET);
 	dev_dbg(sdev->dev, " fw %s: header length %x, module num %d", fw_header->name,
-	fw_header->len, fw_header->num_module_entries);
+		fw_header->len, fw_header->num_module_entries);
 
 	fm_entry = (struct ModuleEntry *)((void *)fw_header + fw_header->len);
+	fm_config = (struct ModuleConfig *)(fm_entry + fw_header->num_module_entries);
+
 	module_entry = devm_kmalloc_array(sdev->dev, fw_header->num_module_entries,
-	                         sizeof(*module_entry), GFP_KERNEL);
+					  sizeof(*module_entry), GFP_KERNEL);
 	if (!module_entry)
 		return -ENOMEM;
 
 
-	hdev->fw_module_num = fw_header->num_module_entries;
-	hdev->cavs_fw_module_entry = module_entry;
+	sdev->fw_module_num = fw_header->num_module_entries;
+	sdev->fw_modules = module_entry;
 
 	for (i = 0; i < fw_header->num_module_entries; i++) {
-		dev_dbg(sdev->dev, "module %s : UUID %pUL, ", fm_entry->name,
-		       fm_entry->uuid);
-		memcpy(module_entry, fm_entry++, sizeof(*fm_entry));
+		int dw_count;
+
+		dev_err(sdev->dev, "module %s : UUID %pUL, ", fm_entry->name,
+			fm_entry->uuid);
+
+		memcpy(module_entry->uuid, fm_entry->uuid, UUID_SIZE);
+		memcpy(module_entry->name, fm_entry->name, MAX_MODULE_NAME_LEN);
+
+		if (fm_entry->cfg_count)
+			module_entry->bss_size = fm_config[fm_entry->cfg_offset].is_bytes;
+
+		memcpy(&module_entry->type, &fm_entry->type, sizeof(fm_entry->type));
 
 		/* bringup fw starts at zero */
 		module_entry->id = i;
+		module_entry->instance_max_count = fm_entry->instance_max_count;
+
+		/* align to dw */
+		dw_count = (module_entry->instance_max_count + 31) >> 5;
+		module_entry->instance_id = devm_kzalloc(sdev->dev, dw_count, GFP_KERNEL);
+		if (!module_entry->instance_id)
+			return -ENOMEM;
+
 		module_entry++;
+		fm_entry++;
 	}
 
 	return fw_offset;
