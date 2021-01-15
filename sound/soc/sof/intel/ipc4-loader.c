@@ -17,6 +17,7 @@
 #include "ipc4-intel.h"
 #include "../ops.h"
 #include "../ipc4.h"
+#include "../ipc4-modules.h"
 
 /*********************************************************************
  *     css_manifest hdr
@@ -104,6 +105,8 @@ int snd_sof_fw_ext_man_parse_cavs(struct snd_sof_dev *sdev,
 		module_entry++;
 		fm_entry++;
 	}
+
+	sof_ipc4_update_module_info(sdev);
 
 	return fw_offset;
 }

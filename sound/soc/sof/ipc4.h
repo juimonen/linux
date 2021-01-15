@@ -16,6 +16,12 @@ struct sof_ipc4_fw_status {
 	char *msg;
 };
 
+static inline int sof_ipc4_module_buffer_size(int ch,  int rate, int width, int sch_num)
+{
+	/* 1ms data size in fw */
+	return (ch) * ((rate) / 1000) * ((width) >> 3) * sch_num;
+}
+
 int sof_ipc4_create_pipeline(struct snd_sof_dev *sdev, u32 id, u32 memory_size,
 					int priority, int lp_mode);
 int sof_ipc4_set_pipeline_status(struct snd_sof_dev *sdev, u32 id, u32 status);
