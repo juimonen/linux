@@ -571,6 +571,7 @@ const struct snd_sof_dsp_ops sof_mtl_ops = {
 	.get_window_offset = hda_dsp_ipc_get_window_offset,
 	.check_ipc_irq	= mtl_dsp_check_ipc_irq,
 	.get_ipc_version = mtl_dsp_get_ipc_version,
+	.get_module_config = sof_ipc4_get_module_config,
 
 	.ipc_msg_data	= hda_ipc_msg_data,
 	.ipc_pcm_params	= hda_ipc_pcm_params,
