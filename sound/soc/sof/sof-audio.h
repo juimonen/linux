@@ -260,6 +260,8 @@ int sof_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget);
 int sof_widget_list_setup(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir);
 int sof_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir);
 
+int sof_ipc4_widget_list_setup(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm,
+			       struct sof_ipc_pcm_params *pcm);
 int sof_ipc4_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir);
 int sof_ipc4_process_pipeline(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm,
 				struct snd_pcm_substream *substream, int cmd);

@@ -16,6 +16,7 @@
 #include <sound/sof.h>
 #include "sof-priv.h"
 #include "sof-audio.h"
+#include "ipc4.h"
 #include "ops.h"
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_DEBUG_PROBES)
 #include "compress.h"
@@ -123,15 +124,16 @@ static int sof_pcm_dsp_pcm_free(struct snd_pcm_substream *substream,
 
 static int sof_pcm_setup_connected_widgets(struct snd_sof_dev *sdev,
 					   struct snd_soc_pcm_runtime *rtd,
-					   struct snd_sof_pcm *spcm, int dir)
+					   struct snd_sof_pcm *spcm,
+					   struct sof_ipc_pcm_params *pcm, int dir)
 {
+	int ipc_version = snd_sof_dsp_get_ipc_version(sdev);
 	struct snd_soc_dai *dai;
 	int ret, j;
 
 	/* query DAPM for list of connected widgets and set them up */
 	for_each_rtd_cpu_dais(rtd, j, dai) {
 		struct snd_soc_dapm_widget_list *list;
-
 		ret = snd_soc_dapm_dai_get_connected_widgets(dai, dir, &list,
 							     dpcm_end_walk_at_be);
 		if (ret < 0) {
@@ -142,7 +144,10 @@ static int sof_pcm_setup_connected_widgets(struct snd_sof_dev *sdev,
 
 		spcm->stream[dir].list = list;
 
-		ret = sof_widget_list_setup(sdev, spcm, dir);
+		if (ipc_version == SOF_IPC_VERSION_1)
+			ret = sof_widget_list_setup(sdev, spcm, dir);
+		else
+			ret = sof_ipc4_widget_list_setup(sdev, spcm, pcm);
 		if (ret < 0) {
 			dev_err(sdev->dev, "error: failed widget list set up for pcm %d dir %d\n",
 				spcm->pcm.pcm_id, dir);
@@ -254,7 +259,7 @@ static int sof_pcm_hw_params(struct snd_soc_component *component,
 
 	/* if this is a repeated hw_params without hw_free, skip setting up widgets */
 	if (!spcm->stream[substream->stream].list) {
-		ret = sof_pcm_setup_connected_widgets(sdev, rtd, spcm, substream->stream);
+		ret = sof_pcm_setup_connected_widgets(sdev, rtd, spcm, &pcm, substream->stream);
 		if (ret < 0)
 			return ret;
 	}
@@ -477,6 +482,232 @@ static int sof_pcm_trigger(struct snd_soc_component *component,
 	}
 
 	return ret;
+}
+
+static int sof_ipc4_pcm_hw_params(struct snd_soc_component *component,
+			     struct snd_pcm_substream *substream,
+			     struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	struct snd_sof_pcm *spcm;
+	struct sof_ipc_pcm_params pcm;
+	struct sof_ipc_pcm_params_reply ipc_params_reply;
+	int ret;
+
+	/* nothing to do for BE */
+	if (rtd->dai_link->no_pcm)
+		return 0;
+
+	spcm = snd_sof_find_spcm_dai(component, rtd);
+	if (!spcm)
+		return -EINVAL;
+
+	/*
+	 * Handle repeated calls to hw_params() without free_pcm() in
+	 * between. At least ALSA OSS emulation depends on this.
+	 */
+	if (spcm->prepared[substream->stream]) {
+		ret = sof_pcm_dsp_pcm_free(substream, sdev, spcm);
+		if (ret < 0)
+			return ret;
+	}
+
+	dev_dbg(component->dev, "pcm: hw params stream %d dir %d\n",
+		spcm->pcm.pcm_id, substream->stream);
+
+	memset(&pcm, 0, sizeof(pcm));
+
+	/* create compressed page table for audio firmware */
+	if (runtime->buffer_changed) {
+		ret = create_page_table(component, substream, runtime->dma_area,
+					runtime->dma_bytes);
+		if (ret < 0)
+			return ret;
+	}
+
+	pcm.params.direction = substream->stream;
+
+	/* firmware already configured host stream */
+	ret = snd_sof_pcm_platform_hw_params(sdev,
+					     substream,
+					     params,
+					     &pcm.params);
+	if (ret < 0) {
+		dev_err(component->dev, "error: platform hw params failed\n");
+		return ret;
+	}
+
+	dev_dbg(component->dev, "stream_tag %d", pcm.params.stream_tag);
+
+	/* save pcm hw_params */
+	memcpy(&spcm->params[substream->stream], params, sizeof(*params));
+
+	if (!spcm->stream[substream->stream].list) {
+		ret = sof_pcm_setup_connected_widgets(sdev, rtd, spcm, &pcm, substream->stream);
+		if (ret < 0)
+			return ret;
+	}
+
+	memset(&ipc_params_reply, 0, sizeof(ipc_params_reply));
+	ret = sof_pcm_dsp_params(spcm, substream, &ipc_params_reply);
+	if (ret < 0)
+		return ret;
+
+	spcm->prepared[substream->stream] = true;
+
+	return ret;
+}
+
+/*
+ * FE dai link trigger actions are always executed in non-atomic context because
+ * they involve IPC's.
+ */
+static int sof_ipc4_pcm_trigger(struct snd_soc_component *component,
+			   struct snd_pcm_substream *substream, int cmd)
+{
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	struct snd_sof_pcm *spcm;
+	bool reset_hw_params = false;
+	bool free_widget_list = false;
+	bool ipc_first = false;
+	int ret;
+
+	/* nothing to do for BE */
+	if (rtd->dai_link->no_pcm)
+		return 0;
+
+	spcm = snd_sof_find_spcm_dai(component, rtd);
+	if (!spcm)
+		return -EINVAL;
+
+	dev_dbg(component->dev, "pcm: trigger stream %d dir %d cmd %d\n",
+		spcm->pcm.pcm_id, substream->stream, cmd);
+
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		ipc_first = true;
+		break;
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		break;
+	case SNDRV_PCM_TRIGGER_RESUME:
+		if (spcm->stream[substream->stream].suspend_ignored) {
+			/*
+			 * this case will be triggered when INFO_RESUME is
+			 * supported, no need to resume streams that remained
+			 * enabled in D0ix.
+			 */
+			spcm->stream[substream->stream].suspend_ignored = false;
+			return 0;
+		}
+
+		/* set up hw_params */
+		ret = sof_pcm_prepare(component, substream);
+		if (ret < 0) {
+			dev_err(component->dev,
+				"error: failed to set up hw_params upon resume\n");
+			return ret;
+		}
+
+		fallthrough;
+	case SNDRV_PCM_TRIGGER_START:
+		if (spcm->stream[substream->stream].suspend_ignored) {
+			/*
+			 * This case will be triggered when INFO_RESUME is
+			 * not supported, no need to re-start streams that
+			 * remained enabled in D0ix.
+			 */
+			spcm->stream[substream->stream].suspend_ignored = false;
+			return 0;
+		}
+		break;
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+		if (sdev->system_suspend_target == SOF_SUSPEND_S0IX &&
+		    spcm->stream[substream->stream].d0i3_compatible) {
+			/*
+			 * trap the event, not sending trigger stop to
+			 * prevent the FW pipelines from being stopped,
+			 * and mark the flag to ignore the upcoming DAPM
+			 * PM events.
+			 */
+			spcm->stream[substream->stream].suspend_ignored = true;
+			return 0;
+		}
+		free_widget_list = true;
+		fallthrough;
+	case SNDRV_PCM_TRIGGER_STOP:
+		ipc_first = true;
+		reset_hw_params = true;
+		break;
+	default:
+		dev_err(component->dev, "error: unhandled trigger cmd %d\n",
+			cmd);
+		return -EINVAL;
+	}
+
+	/*
+	 * DMA and IPC sequence is different for start and stop. Need to send
+	 * STOP IPC before stop DMA
+	 */
+	if (!ipc_first)
+		snd_sof_pcm_platform_trigger(sdev, substream, cmd);
+
+	ret = sof_ipc4_process_pipeline(sdev, spcm, substream, cmd);
+	if (ret < 0)
+		return ret;
+
+	/* need to STOP DMA even if STOP IPC failed */
+	if (ipc_first)
+		snd_sof_pcm_platform_trigger(sdev, substream, cmd);
+
+	/* free PCM if reset_hw_params is set and the STOP IPC is successful */
+	if (!ret && reset_hw_params) {
+		spcm->prepared[substream->stream] = false;
+
+		/* free widget list during suspend */
+		if (free_widget_list)
+			ret = sof_ipc4_widget_list_free(sdev, spcm, substream->stream);
+	}
+
+	return ret;
+}
+
+static int sof_ipc4_pcm_hw_free(struct snd_soc_component *component,
+			   struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	struct snd_sof_pcm *spcm;
+	int ret, err = 0;
+
+	/* nothing to do for BE */
+	if (rtd->dai_link->no_pcm)
+		return 0;
+
+	spcm = snd_sof_find_spcm_dai(component, rtd);
+	if (!spcm)
+		return -EINVAL;
+
+	dev_dbg(component->dev, "pcm: free stream %d dir %d\n",
+		spcm->pcm.pcm_id, substream->stream);
+
+	spcm->prepared[substream->stream] = false;
+
+	ret = sof_ipc4_widget_list_free(sdev, spcm, substream->stream);
+	if (ret < 0)
+		err = ret;
+
+	cancel_work_sync(&spcm->stream[substream->stream].period_elapsed_work);
+
+	ret = snd_sof_pcm_platform_hw_free(sdev, substream);
+	if (ret < 0) {
+		dev_err(component->dev, "error: platform hw free failed\n");
+		err = ret;
+	}
+
+	return err;
 }
 
 static snd_pcm_uframes_t sof_pcm_pointer(struct snd_soc_component *component,
@@ -905,6 +1136,11 @@ int snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
 		pd->hw_params = sof_pcm_hw_params;
 		pd->hw_free = sof_pcm_hw_free;
 		pd->trigger = sof_pcm_trigger;
+		break;
+	case SOF_IPC_VERSION_2:
+		pd->hw_params = sof_ipc4_pcm_hw_params;
+		pd->hw_free = sof_ipc4_pcm_hw_free;
+		pd->trigger = sof_ipc4_pcm_trigger;
 		break;
 	default:
 		dev_err(sdev->dev, "unsupported ipc version\n");

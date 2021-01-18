@@ -94,6 +94,23 @@ void sof_ipc4_check_reply_status(struct snd_sof_dev *sdev, u32 msg)
 }
 EXPORT_SYMBOL(sof_ipc4_check_reply_status);
 
+static void sof_ipc4_dump_config(struct snd_sof_dev *sdev,
+				 void *config, u32 size)
+{
+	int *data = (int *)config;
+	int i, dw_size;
+	char buffer[36];
+
+	dw_size = size >> 2;
+	for (i = 0; i < dw_size; i += 4) {
+		int len = (i + 4 < dw_size) ? 16 : (dw_size - i) * 4;
+
+		hex_dump_to_buffer(data + i, len, 16, 4, buffer,
+				   sizeof(buffer), false);
+		dev_dbg(sdev->dev, "%s", buffer);
+	}
+}
+
 /* wait for IPC message reply */
 static int ipc4_tx_wait_done(struct snd_sof_ipc *ipc, struct snd_sof_ipc_msg *msg,
 			void *reply_data)
@@ -317,6 +334,8 @@ int sof_ipc4_initialize_module(struct snd_sof_dev *sdev, u32 mod_id, u32 instanc
 	if (ret < 0)
 		dev_err(sdev->dev, "error: failed to create module %s : %d -%d",
 			sdev->fw_modules[mod_id].name, mod_id, instance_id);
+
+	sof_ipc4_dump_config(sdev, data, param_size);
 
 	return ret;
 }
