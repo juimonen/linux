@@ -2278,6 +2278,16 @@ static int sof_process_load(struct snd_soc_component *scomp, int index,
 		goto err;
 	}
 
+	/*
+	 * For process components with large config, snd_sof_ipc_set_get_comp_data() will attempt
+	 * to find the widget. So add the widget to the widget_list and set its use_count before
+	 * sending the config.
+	 */
+	list_add(&swidget->list, &sdev->widget_list);
+	mutex_lock(&swidget->use_count_mutex);
+	swidget->use_count++;
+	mutex_unlock(&swidget->use_count_mutex);
+
 	/* we sent the data in single message so return */
 	if (ipc_data_size)
 		goto out;
@@ -2406,6 +2416,8 @@ static int sof_widget_ready(struct snd_soc_component *scomp, int index,
 	swidget->id = w->id;
 	swidget->pipeline_id = index;
 	swidget->private = NULL;
+	mutex_init(&swidget->use_count_mutex);
+
 	memset(&reply, 0, sizeof(reply));
 
 	dev_dbg(scomp->dev, "tplg: ready widget id %d pipe %d type %d name : %s stream %s\n",
@@ -2537,7 +2549,15 @@ static int sof_widget_ready(struct snd_soc_component *scomp, int index,
 	}
 
 	w->dobj.private = swidget;
-	list_add(&swidget->list, &sdev->widget_list);
+
+	/* process components are added to widget_list in sof_process_load() */
+	if (w->id != snd_soc_dapm_effect) {
+		list_add(&swidget->list, &sdev->widget_list);
+		mutex_lock(&swidget->use_count_mutex);
+		swidget->use_count++;
+		mutex_unlock(&swidget->use_count_mutex);
+	}
+
 	return ret;
 }
 

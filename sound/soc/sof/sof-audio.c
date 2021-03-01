@@ -75,6 +75,14 @@ static int sof_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swid
 	struct sof_ipc_reply reply;
 	int ret;
 
+	/* only free when refcount is 0 */
+	mutex_lock(&swidget->use_count_mutex);
+	if (--swidget->use_count) {
+		mutex_unlock(&swidget->use_count_mutex);
+		return;
+	}
+	mutex_unlock(&swidget->use_count_mutex);
+
 	if (!swidget->private)
 		return 0;
 
@@ -94,6 +102,9 @@ static int sof_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swid
 				 &reply, sizeof(reply));
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: failed to free widget %s\n", swidget->widget->name);
+		mutex_lock(&swidget->use_count_mutex);
+		swidget->use_count++;
+		mutex_unlock(&swidget->use_count_mutex);
 		return ret;
 	}
 
@@ -113,6 +124,14 @@ static int sof_widget_setup(struct snd_sof_dev *sdev, struct snd_sof_widget *swi
 	size_t ipc_size;
 	int ret;
 
+	/* widget already set up */
+	mutex_lock(&swidget->use_count_mutex);
+	if (++swidget->use_count > 1) {
+		mutex_unlock(&swidget->use_count_mutex);
+		return 0;
+	}
+	mutex_unlock(&swidget->use_count_mutex);
+
 	/* skip if there is no private data */
 	if (!swidget->private)
 		return 0;
@@ -121,7 +140,7 @@ static int sof_widget_setup(struct snd_sof_dev *sdev, struct snd_sof_widget *swi
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: failed to enable target core: %d for widget %s\n",
 			ret, swidget->widget->name);
-		return ret;
+		goto use_count_free;
 	}
 
 	switch (swidget->id) {
@@ -152,11 +171,18 @@ static int sof_widget_setup(struct snd_sof_dev *sdev, struct snd_sof_widget *swi
 					 &r, sizeof(r));
 		break;
 	}
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(sdev->dev, "error: failed to load widget %s\n", swidget->widget->name);
-	else
-		dev_dbg(sdev->dev, "widget %s setup complete\n", swidget->widget->name);
+		goto use_count_free;
+	}
 
+	dev_dbg(sdev->dev, "widget %s setup complete\n", swidget->widget->name);
+	return 0;
+
+use_count_free:
+	mutex_lock(&swidget->use_count_mutex);
+	swidget->use_count--;
+	mutex_unlock(&swidget->use_count_mutex);
 	return ret;
 }
 
@@ -364,6 +390,11 @@ int sof_restore_pipelines(struct device *dev)
 
 	/* restore pipeline components */
 	list_for_each_entry_reverse(swidget, &sdev->widget_list, list) {
+		/* reset widget use_count after resuming */
+		mutex_lock(&swidget->use_count_mutex);
+		swidget->use_count = 0;
+		mutex_unlock(&swidget->use_count_mutex);
+
 		ret = sof_widget_setup(sdev, swidget);
 		if (ret < 0)
 			return ret;

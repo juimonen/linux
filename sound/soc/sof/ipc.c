@@ -672,8 +672,48 @@ int snd_sof_ipc_set_get_comp_data(struct snd_sof_control *scontrol,
 	struct sof_ipc_fw_ready *ready = &sdev->fw_ready;
 	struct sof_ipc_fw_version *v = &ready->version;
 	struct sof_ipc_ctrl_data_params sparams;
+	struct snd_sof_widget *swidget;
+	bool widget_found = false;
 	size_t send_bytes;
 	int err;
+
+	list_for_each_entry_reverse(swidget, &sdev->widget_list, list) {
+		if (swidget->comp_id == scontrol->comp_id) {
+			widget_found = true;
+			break;
+		}
+	}
+
+	if (!widget_found) {
+		dev_err(sdev->dev, "error: can't find widget with id %d\n", scontrol->comp_id);
+		return -EINVAL;
+	}
+
+	/*
+	 * return 0 for SET commands as the cached value will be sent to the DSP when the widget
+	 * has been set up. Return error for GET to notify the userspace that the widget
+	 * data is inaccessible.
+	 */
+	mutex_lock(&swidget->use_count_mutex);
+	if (!swidget->use_count) {
+		switch (ctrl_type) {
+		case SOF_CTRL_TYPE_VALUE_CHAN_GET:
+		case SOF_CTRL_TYPE_DATA_GET:
+		case SOF_CTRL_TYPE_VALUE_COMP_GET:
+			err = -EIO;
+			break;
+		case SOF_CTRL_TYPE_VALUE_COMP_SET:
+		case SOF_CTRL_TYPE_VALUE_CHAN_SET:
+		case SOF_CTRL_TYPE_DATA_SET:
+			err = 0;
+			break;
+		default:
+			err = -EINVAL;
+			break;
+		}
+		goto err;
+	}
+	mutex_unlock(&swidget->use_count_mutex);
 
 	/* read or write firmware volume */
 	if (scontrol->readback_offset != 0) {
@@ -758,6 +798,10 @@ int snd_sof_ipc_set_get_comp_data(struct snd_sof_control *scontrol,
 		dev_err(sdev->dev, "error: set/get large ctrl ipc comp %d\n",
 			cdata->comp_id);
 
+	return err;
+
+err:
+	mutex_unlock(&swidget->use_count_mutex);
 	return err;
 }
 EXPORT_SYMBOL(snd_sof_ipc_set_get_comp_data);
