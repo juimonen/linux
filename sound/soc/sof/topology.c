@@ -570,6 +570,15 @@ static const struct sof_topology_token sched_tokens[] = {
 		offsetof(struct sof_ipc_pipe_new, frames_per_sched), 0},
 	{SOF_TKN_SCHED_TIME_DOMAIN, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
 		offsetof(struct sof_ipc_pipe_new, time_domain), 0},
+	{SOF_TKN_SCHED_DYNAMIC, SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u16,
+		offsetof(struct snd_sof_widget, dynamic_pipeline_widget), 0},
+
+};
+
+static const struct sof_topology_token pipeline_tokens[] = {
+	{SOF_TKN_SCHED_DYNAMIC, SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u16,
+		offsetof(struct snd_sof_widget, dynamic_pipeline_widget), 0},
+
 };
 
 /* volume */
@@ -1762,6 +1771,15 @@ static int sof_widget_load_pipeline(struct snd_soc_component *scomp, int index,
 		goto err;
 	}
 
+	ret = sof_parse_tokens(scomp, swidget, pipeline_tokens,
+			       ARRAY_SIZE(pipeline_tokens), private->array,
+			       le32_to_cpu(private->size));
+	if (ret != 0) {
+		dev_err(scomp->dev, "error: parse pipeline tokens failed %d\n",
+			private->size);
+		goto err;
+	}
+
 	dev_dbg(scomp->dev, "pipeline %s: period %d pri %d mips %d core %d frames %d\n",
 		swidget->widget->name, pipeline->period, pipeline->priority,
 		pipeline->period_mips, pipeline->core, pipeline->frames_per_sched);
@@ -1770,8 +1788,10 @@ static int sof_widget_load_pipeline(struct snd_soc_component *scomp, int index,
 
 	/* send ipc's to create pipeline comp and power up schedule core */
 	ret = sof_load_pipeline_ipc(scomp->dev, pipeline, r);
-	if (ret >= 0)
-		return ret;
+	if (ret < 0)
+		goto err;
+
+	return ret;
 err:
 	kfree(pipeline);
 	return ret;
@@ -3622,7 +3642,7 @@ int snd_sof_complete_pipeline(struct device *dev,
 static int sof_complete(struct snd_soc_component *scomp)
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
-	struct snd_sof_widget *swidget;
+	struct snd_sof_widget *swidget, *comp_swidget;
 	int ret;
 
 	/* some widget types require completion notificattion */
@@ -3637,11 +3657,20 @@ static int sof_complete(struct snd_soc_component *scomp)
 				return ret;
 
 			swidget->complete = ret;
+
+			/* set pipe_widget for all widgets with same pipeline_id */
+			list_for_each_entry_reverse(comp_swidget, &sdev->widget_list, list)
+				if (comp_swidget->pipeline_id == swidget->pipeline_id) {
+					comp_swidget->pipe_widget = swidget;
+					comp_swidget->dynamic_pipeline_widget =
+						swidget->dynamic_pipeline_widget;
+				}
 			break;
 		default:
 			break;
 		}
 	}
+
 	/*
 	 * cache initial values of SOF kcontrols by reading DSP value over
 	 * IPC. It may be overwritten by alsa-mixer after booting up
