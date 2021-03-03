@@ -94,6 +94,11 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 	int ret;
 	u32 size, rate, bits;
 
+	dev_dbg(sdev->dev, "setting stream from rate %d bits %d channels %d size %d\n", params_rate(params),
+		params_width(params),
+		params_channels(params),
+		params_buffer_bytes(params));
+
 	size = params_buffer_bytes(params);
 	rate = hda_dsp_get_mult_div(sdev, params_rate(params));
 	bits = hda_dsp_get_bits(sdev, params_width(params));
@@ -102,6 +107,7 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 
 	dmab = substream->runtime->dma_buffer_p;
 
+	dev_dbg(sdev->dev, "setting stream format_val rate %d bits %d channels %d\n", rate, bits, (params_channels(params) - 1));
 	hstream->format_val = rate | bits | (params_channels(params) - 1);
 	hstream->bufsize = size;
 	hstream->period_bytes = params_period_bytes(params);

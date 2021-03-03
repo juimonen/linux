@@ -51,14 +51,17 @@ static struct sof_ipc_dai_config* sof_dai_config_match(struct snd_sof_dev *sdev,
 	int num_conf;
 	int i;
 
-	if (!ipc_pcm)
+	if (!ipc_pcm) {
+	  	dev_dbg(sdev->dev, "no ipc_pcm, using default dai config %d\n", dai->def_conf);
 		return &dai->dai_config[dai->def_conf];
+	}
 
 	sample_rate = ipc_pcm->params.rate;
 	num_conf = dai->num_conf;
 
 	/* match for ssp sample rate and fsync for now, otherwise use default config */
 	for (i = 0; i < num_conf; i++) {
+		dev_dbg(sdev->dev, "dai config rate %d at index %d\n", sample_rate, i);
 		if (dai->dai_config[i].type == SOF_DAI_INTEL_SSP &&
 		    sample_rate == dai->dai_config[i].ssp.fsync_rate) {
 			dev_dbg(sdev->dev, "found dai config match at index %d\n", i);
