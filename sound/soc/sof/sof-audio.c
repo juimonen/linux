@@ -142,10 +142,6 @@ static int sof_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swid
 		goto unlock;
 	}
 
-	/* retain the static widget if current use_count is 1 */
-	if (swidget->use_count == 1 && !swidget->dynamic_pipeline_widget)
-		goto unlock;
-
 	/* only free when refcount is 0 */
 	if (--swidget->use_count)
 		goto unlock;
@@ -522,25 +518,6 @@ int sof_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int
 
 	snd_soc_dapm_dai_free_widgets(&list);
 	spcm->stream[dir].list = NULL;
-
-	return 0;
-}
-
-/*
- * Free all widgets. This function should be called after topology parsing is complete to
- * facilitate dynamic widget loading/unloading when a PCM stream is started/stopped.
- */
-int sof_widgets_free_all(struct snd_soc_component *scomp)
-{
-	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
-	struct snd_sof_widget *swidget;
-	int ret;
-
-	list_for_each_entry_reverse(swidget, &sdev->widget_list, list) {
-		ret = sof_widget_free(sdev, swidget);
-		if (ret < 0)
-			return ret;
-	}
 
 	return 0;
 }
