@@ -226,20 +226,26 @@ static int sof_widget_setup(struct snd_sof_dev *sdev, struct snd_sof_widget *swi
 	size_t ipc_size;
 	int ret;
 
+	dev_dbg(sdev->dev, "in sof widget setup\n");
+
 	/* widget already set up */
 	mutex_lock(&swidget->use_count_mutex);
 	if (++swidget->use_count > 1) {
 		mutex_unlock(&swidget->use_count_mutex);
 		if (!swidget->dynamic_pipeline_widget)
 			return sof_static_widget_config(sdev, swidget);
-		else
+		else {
+			dev_dbg(sdev->dev, "humppa 1\n");
 			return 0;
+		}
 	}
 	mutex_unlock(&swidget->use_count_mutex);
 
 	/* skip if there is no private data */
-	if (!swidget->private)
+	if (!swidget->private) {
+		dev_dbg(sdev->dev, "humppa 2\n");
 		return 0;
+	}
 
 	ret = sof_pipeline_core_enable(sdev, swidget);
 	if (ret < 0) {
