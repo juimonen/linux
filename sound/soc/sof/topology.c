@@ -3447,6 +3447,7 @@ static int sof_complete(struct snd_soc_component *scomp)
 					ret = sof_set_pipe_widget(sdev, swidget, comp_swidget);
 					if (ret < 0)
 						return ret;
+					swidget->complete = ret;
 				}
 			break;
 		default:
