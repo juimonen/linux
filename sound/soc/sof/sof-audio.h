@@ -259,4 +259,9 @@ int sof_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget);
 /* PCM */
 int sof_widget_list_setup(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir);
 int sof_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir);
+
+int sof_ipc4_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir);
+int sof_ipc4_process_pipeline(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm,
+				struct snd_pcm_substream *substream, int cmd);
+
 #endif

@@ -9,6 +9,9 @@
 //
 
 #include "sof-audio.h"
+#include "ipc4-modules.h"
+#include "ipc4-topology.h"
+#include "ipc4.h"
 #include "ops.h"
 
 static int sof_kcontrol_setup(struct snd_sof_dev *sdev, struct snd_sof_control *scontrol)
@@ -231,16 +234,11 @@ use_count_dec:
 }
 EXPORT_SYMBOL(sof_widget_setup);
 
-static int sof_route_setup(struct snd_sof_dev *sdev, struct snd_soc_dapm_widget *wsource,
-			   struct snd_soc_dapm_widget *wsink)
+static int sof_find_route(struct snd_sof_dev *sdev, struct snd_sof_widget *src_widget,
+			   struct snd_sof_widget *sink_widget, struct snd_sof_route **route)
 {
-	struct snd_sof_widget *src_widget = wsource->dobj.private;
-	struct snd_sof_widget *sink_widget = wsink->dobj.private;
-	struct sof_ipc_pipe_comp_connect *connect;
 	struct snd_sof_route *sroute;
-	struct sof_ipc_reply reply;
 	bool route_found = false;
-	int ret;
 
 	/* ignore routes involving virtual widgets in topology */
 	switch (src_widget->id) {
@@ -270,9 +268,27 @@ static int sof_route_setup(struct snd_sof_dev *sdev, struct snd_soc_dapm_widget 
 
 	if (!route_found) {
 		dev_err(sdev->dev, "error: cannot find SOF route for source %s -> %s sink\n",
-			wsource->name, wsink->name);
+			src_widget->widget->name, sink_widget->widget->name);
 		return -EINVAL;
 	}
+
+	*route = sroute;
+	return 0;
+}
+
+static int sof_ipc_route_setup(struct snd_sof_dev *sdev, struct snd_soc_dapm_widget *wsource,
+			   struct snd_soc_dapm_widget *wsink)
+{
+	struct snd_sof_widget *src_widget = wsource->dobj.private;
+	struct snd_sof_widget *sink_widget = wsink->dobj.private;
+	struct sof_ipc_pipe_comp_connect *connect;
+	struct snd_sof_route *sroute;
+	struct sof_ipc_reply reply;
+	int ret;
+
+	ret = sof_find_route(sdev, src_widget, sink_widget, &sroute);
+	if (ret < 0)
+		return ret;
 
 	/* nothing to do if route is already set up */
 	if (sroute->setup)
@@ -290,6 +306,60 @@ static int sof_route_setup(struct snd_sof_dev *sdev, struct snd_soc_dapm_widget 
 		dev_dbg(sdev->dev, "route %s -> %s setup complete\n", wsource->name, wsink->name);
 		sroute->setup = true;
 	}
+
+	return ret;
+}
+
+static int sof_ipc4_route_setup(struct snd_sof_dev *sdev, struct snd_soc_dapm_widget *wsource,
+				struct snd_soc_dapm_widget *wsink)
+{
+	struct snd_sof_widget *src_widget = wsource->dobj.private;
+	struct snd_sof_widget *sink_widget = wsink->dobj.private;
+	int sink_module_id, sink_instance_id, sink_queue;
+	int src_module_id, src_instance_id, src_queue;
+	struct snd_sof_route *sroute;
+	int ret;
+
+	ret = sof_find_route(sdev, src_widget, sink_widget, &sroute);
+	if (ret < 0)
+		return ret;
+
+	/* nothing to do if route is already set up */
+	if (sroute->setup)
+		return 0;
+
+	src_module_id = SOF_IPC4_MODULE_ID(src_widget->comp_id);
+	src_instance_id = SOF_IPC4_INSTANCE_ID(src_widget->comp_id);
+	src_queue = 0;
+	sink_module_id = SOF_IPC4_MODULE_ID(sink_widget->comp_id);
+	sink_instance_id = SOF_IPC4_INSTANCE_ID(sink_widget->comp_id);
+	sink_queue = 0;
+
+	ret = sof_ipc4_bind_modules(sdev, src_module_id, src_instance_id, src_queue,
+				sink_module_id, sink_instance_id, sink_queue);
+	if (ret < 0) {
+		dev_err(sdev->dev, "failed to bind module %s %d:%d to module %s %d:%d",
+			src_widget->widget->name, src_module_id, src_instance_id,
+			sink_widget->widget->name, sink_module_id, sink_instance_id);
+		return ret;
+	}
+
+	dev_dbg(sdev->dev, "route %s -> %s setup complete\n", wsource->name, wsink->name);
+	sroute->setup = true;
+
+	return 0;
+}
+
+static int sof_route_setup(struct snd_sof_dev *sdev, struct snd_soc_dapm_widget *wsource,
+			   struct snd_soc_dapm_widget *wsink)
+{
+	int ipc_version = snd_sof_dsp_get_ipc_version(sdev);
+	int ret;
+
+	if (ipc_version == SOF_IPC_VERSION_1)
+		ret = sof_ipc_route_setup(sdev, wsource, wsink);
+	else if (ipc_version == SOF_IPC_VERSION_2)
+		ret = sof_ipc4_route_setup(sdev, wsource, wsink);
 
 	return ret;
 }
@@ -474,6 +544,311 @@ int sof_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int
 	spcm->stream[dir].list = NULL;
 
 	return ret1;
+}
+
+static int sof_ipc4_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget)
+{
+	struct sof_ipc4_pipeline *pipeline;
+	int ret, module_id, instance_id;
+
+	/* decrement usecount and update config for static DAI widgets */
+	if (--swidget->use_count > 0)
+		return 0;
+
+	/* only free when refcount is 0 */
+	if (!swidget->private)
+		return 0;
+
+	switch (swidget->id) {
+	case snd_soc_dapm_scheduler:
+		ret = sof_ipc4_set_pipeline_status(sdev, swidget->pipeline_id, PIPE_RESET);
+		if (ret < 0)
+			goto error;
+
+		pipeline = (struct sof_ipc4_pipeline *)swidget->private;
+		pipeline->mem_usage = 0;
+		pipeline->state = PIPE_RESET;
+
+		ret = sof_ipc4_delete_pipeline(sdev, swidget->pipeline_id);
+		if (ret < 0)
+			goto error;
+		break;
+	default:
+		module_id = SOF_IPC4_MODULE_ID(swidget->comp_id);
+		instance_id = SOF_IPC4_INSTANCE_ID(swidget->comp_id);
+
+		ret = sof_ipc4_release_module(sdev, module_id, instance_id);
+		if (ret < 0)
+			goto error;
+
+		sof_reset_route_setup_status(sdev, swidget);
+		break;
+	}
+
+	swidget->complete = 0;
+	dev_dbg(sdev->dev, "widget %s freed\n", swidget->widget->name);
+
+	return 0;
+
+error:
+	dev_err(sdev->dev, "error: failed to free widget %s\n", swidget->widget->name);
+	swidget->use_count++;
+	return ret;
+}
+
+int sof_ipc4_widget_list_free(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm, int dir)
+{
+	struct snd_soc_dapm_widget_list *list = spcm->stream[dir].list;
+	struct snd_soc_dapm_widget *widget;
+	int i, ret, ret1;
+
+	if (!list)
+		return 0;
+
+	/*
+	 * Free widgets in the list. This can fail but continue freeing other widgets to keep
+	 * use_counts balanced.
+	 */
+	for_each_dapm_widgets(list, i, widget) {
+		struct snd_sof_widget *swidget = widget->dobj.private;
+
+		if (!swidget)
+			continue;
+
+		ret = sof_ipc4_widget_free(sdev, swidget->pipe_widget);
+		if (ret < 0)
+			ret1 = ret;
+	}
+
+	for_each_dapm_widgets(list, i, widget) {
+		if (widget->dobj.private)
+			sof_ipc4_widget_free(sdev, widget->dobj.private);
+	}
+
+	snd_soc_dapm_dai_free_widgets(&list);
+	spcm->stream[dir].list = NULL;
+
+	return 0;
+}
+
+static int sof_ipc4_widget_setup(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget,
+				 struct snd_sof_pcm *spcm, struct sof_ipc_pcm_params *pcm,
+				 int lp_mode)
+{
+	struct sof_ipc4_pipeline *pipeline;
+	int ret;
+
+	/* widget already set up */
+	if (++swidget->use_count > 1)
+		return 0;
+
+	/* skip if there is no private data */
+	if (!swidget->private)
+		return 0;
+
+	switch (swidget->id) {
+	case snd_soc_dapm_aif_in:
+	case snd_soc_dapm_aif_out:
+	case snd_soc_dapm_dai_in:
+	case snd_soc_dapm_dai_out:
+		ret = sof_ipc4_process_module(sdev, swidget, spcm, pcm, lp_mode);
+		break;
+	case snd_soc_dapm_scheduler:
+		pipeline = swidget->private;
+		ret = sof_ipc4_create_pipeline(sdev, swidget->pipeline_id, pipeline->mem_usage,
+					       pipeline->pipe_new.priority, pipeline->lp_mode);
+		break;
+	default:
+		dev_err(sdev->dev, "error: widget %s is not implemented\n",
+		swidget->widget->name);
+		goto use_count_free;
+	}
+
+	if (ret < 0) {
+		dev_err(sdev->dev, "error: failed to load widget %s\n", swidget->widget->name);
+		goto use_count_free;
+	}
+
+	dev_dbg(sdev->dev, "widget %s setup complete\n", swidget->widget->name);
+	return 0;
+
+use_count_free:
+	swidget->use_count--;
+	return ret;
+}
+
+static void reverse_wigdet_list(struct snd_soc_dapm_widget_list *list)
+{
+	struct snd_soc_dapm_widget *widget;
+	int i;
+
+	for (i = 0; i < list->num_widgets && i < list->num_widgets - 1 - i; i++) {
+		widget = list->widgets[i];
+		list->widgets[i] = list->widgets[list->num_widgets - 1 - i];
+		list->widgets[list->num_widgets - 1 - i] = widget;
+	}
+}
+
+int sof_ipc4_widget_list_setup(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm,
+			       struct sof_ipc_pcm_params *pcm)
+{
+	struct snd_soc_dapm_widget_list *list = spcm->stream[pcm->params.direction].list;
+	struct snd_sof_widget *pipeline_widget;
+	struct snd_soc_dapm_widget *widget;
+	struct sof_ipc4_pipeline *pipeline;
+	int i, num_widgets, ret;
+	int num_pipe_widgets;
+
+	/* nothing to set up */
+	if (!list)
+		return 0;
+
+	/* create source module dai first for capture */
+	if (pcm->params.direction == SOF_IPC_STREAM_CAPTURE)
+		reverse_wigdet_list(list);
+
+	for_each_dapm_widgets(list, num_widgets, widget) {
+		struct snd_sof_widget *swidget = widget->dobj.private;
+
+		if (!swidget)
+			continue;
+
+		/* find pipeline widget for the pipeline that this widget belongs to */
+		pipeline_widget = swidget->pipe_widget;
+		pipeline = (struct sof_ipc4_pipeline *)pipeline_widget->private;
+		ret = sof_ipc4_widget_setup(sdev, swidget, spcm, pcm, pipeline->lp_mode);
+		if (ret < 0) {
+			dev_err(sdev->dev, "error: failed to set up widget %s",
+				swidget->widget->name);
+			goto free_widget;
+		}
+
+		pipeline->mem_usage += sof_ipc4_get_module_mem_size(sdev, swidget);
+	}
+
+	for_each_dapm_widgets(list, i, widget) {
+		struct snd_sof_widget *swidget = widget->dobj.private;
+
+		if (!swidget)
+			continue;
+
+		num_pipe_widgets++;
+		pipeline_widget = swidget->pipe_widget;
+		pipeline = (struct sof_ipc4_pipeline *)pipeline_widget->private;
+		/* create pipeline before its modules */
+		ret = sof_ipc4_widget_setup(sdev, pipeline_widget, spcm, pcm, pipeline->lp_mode);
+		if (ret < 0)
+			goto free_pipeline;
+
+		ret = sof_ipc4_setup_module(sdev, swidget, pipeline->lp_mode);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = sof_setup_pipeline_connections(sdev, list, pcm->params.direction);
+
+	for_each_dapm_widgets(list, num_widgets, widget) {
+		struct snd_sof_widget *swidget = widget->dobj.private;
+
+		if (!swidget)
+			continue;
+
+		/* find pipeline widget for the pipeline that this widget belongs to */
+		pipeline_widget = swidget->pipe_widget;
+		pipeline = (struct sof_ipc4_pipeline *)pipeline_widget->private;
+		if (pipeline->state == PIPE_PAUSED)
+			continue;
+
+		ret = sof_ipc4_set_pipeline_status(sdev, swidget->pipeline_id, PIPE_PAUSED);
+		if (ret < 0)
+			goto free_pipeline;
+
+		pipeline->state = PIPE_PAUSED;
+	}
+
+	return ret;
+
+free_pipeline:
+	/* free pipeline widgets and FW will delete all modules in this pipeline */
+	for_each_dapm_widgets(list, i, widget) {
+		struct snd_sof_widget *swidget = widget->dobj.private;
+
+		if (!swidget)
+			continue;
+
+		if (!num_pipe_widgets--)
+			break;
+
+		sof_ipc4_widget_free(sdev, swidget->pipe_widget);
+	}
+free_widget:
+	/* free all widgets that have been setup successfully */
+	for_each_dapm_widgets(list, i, widget) {
+		if (!num_widgets--)
+			break;
+
+		if (widget->dobj.private)
+			sof_ipc4_widget_free(sdev, widget->dobj.private);
+	}
+
+	return ret;
+}
+
+int sof_ipc4_process_pipeline(struct snd_sof_dev *sdev, struct snd_sof_pcm *spcm,
+				struct snd_pcm_substream *substream, int cmd)
+{
+	struct snd_soc_dapm_widget_list *list = spcm->stream[substream->stream].list;
+	struct snd_sof_widget *pipeline_widget;
+	struct snd_soc_dapm_widget *widget;
+	struct sof_ipc4_pipeline *pipeline;
+	int num_widgets;
+	int state;
+	int ret;
+
+	/* send IPC to the DSP */
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+		state = PIPE_PAUSED;
+		break;
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+	case SNDRV_PCM_TRIGGER_RESUME:
+		state = PIPE_RUNNING;
+		break;
+	case SNDRV_PCM_TRIGGER_START:
+		state = PIPE_RUNNING;
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+		state = PIPE_PAUSED;
+		break;
+	default:
+		dev_err(sdev->dev, "error: unhandled trigger cmd %d\n", cmd);
+		return -EINVAL;
+	}
+
+	for_each_dapm_widgets(list, num_widgets, widget) {
+		struct snd_sof_widget *swidget = widget->dobj.private;
+
+		if (!swidget)
+			continue;
+
+		/* find pipeline widget for the pipeline that this widget belongs to */
+		pipeline_widget = swidget->pipe_widget;
+		pipeline = (struct sof_ipc4_pipeline *)pipeline_widget->private;
+		if (pipeline->state == state)
+			continue;
+
+		ret = sof_ipc4_set_pipeline_status(sdev, swidget->pipeline_id, state);
+		if (ret < 0) {
+			dev_err(sdev->dev, "error: failed to set pipeline %d to state %d",
+					swidget->pipeline_id, state);
+			break;
+		}
+
+		pipeline->state = state;
+	}
+
+	return ret;
 }
 
 /*
