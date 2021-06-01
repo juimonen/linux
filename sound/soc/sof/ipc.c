@@ -13,6 +13,7 @@
 
 #include <linux/mutex.h>
 #include <linux/types.h>
+#include <sound/sof/ipc4.h>
 
 #include "sof-priv.h"
 #include "sof-audio.h"
@@ -425,6 +426,33 @@ void snd_sof_ipc_msgs_rx(struct snd_sof_dev *sdev)
 	ipc_log_header(sdev->dev, "ipc rx done", hdr.cmd);
 }
 EXPORT_SYMBOL(snd_sof_ipc_msgs_rx);
+
+void snd_sof_ipc4_msgs_rx(struct snd_sof_dev *sdev, u32 msg, u32 msg_ext)
+{
+	if (!SOF_IPC4_GLB_NOTIFY_MSG_TYPE(msg))
+		return;
+
+	switch (SOF_IPC4_GLB_NOTIFY_TYPE(msg)) {
+	case SOF_IPC4_GLB_NOTIFY_FW_READY:
+		/* check for FW boot completion */
+		if (sdev->fw_state == SOF_FW_BOOT_IN_PROGRESS) {
+			int err = sof_ops(sdev)->fw_ready(sdev, msg);
+
+			if (err < 0)
+				sdev->fw_state = SOF_FW_BOOT_READY_FAILED;
+			else
+				sdev->fw_state = SOF_FW_BOOT_COMPLETE;
+
+			/* wake up firmware loader */
+			wake_up(&sdev->boot_wait);
+		}
+
+		break;
+	default:
+		break;
+	}
+}
+EXPORT_SYMBOL(snd_sof_ipc4_msgs_rx);
 
 /*
  * IPC trace mechanism.
