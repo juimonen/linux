@@ -757,6 +757,7 @@ extern const struct snd_sof_dsp_ops sof_apl_ops;
 extern const struct snd_sof_dsp_ops sof_cnl_ops;
 extern const struct snd_sof_dsp_ops sof_tgl_ops;
 extern const struct snd_sof_dsp_ops sof_icl_ops;
+extern const struct snd_sof_dsp_ops sof_mtl_ops;
 
 extern const struct sof_intel_dsp_desc apl_chip_info;
 extern const struct sof_intel_dsp_desc cnl_chip_info;
@@ -767,6 +768,7 @@ extern const struct sof_intel_dsp_desc tglh_chip_info;
 extern const struct sof_intel_dsp_desc ehl_chip_info;
 extern const struct sof_intel_dsp_desc jsl_chip_info;
 extern const struct sof_intel_dsp_desc adls_chip_info;
+extern const struct sof_intel_dsp_desc mtl_chip_info;
 
 /* machine driver select */
 void hda_machine_select(struct snd_sof_dev *sdev);
