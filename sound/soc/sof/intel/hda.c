@@ -59,26 +59,26 @@ int hda_ctrl_dai_widget_setup(struct snd_soc_dapm_widget *w)
 	}
 
 	config = &sof_dai->dai_config[sof_dai->current_config];
+	if (snd_sof_dsp_get_ipc_version(sdev) == SOF_IPC_VERSION_1) {
+		/*
+		 * For static pipelines, the DAI widget would already be set up and calling
+		 * sof_widget_setup() simply returns without doing anything.
+		 * For dynamic pipelines, the DAI widget will be set up now.
+		 */
+		ret = sof_widget_setup(sdev, swidget);
+		if (ret < 0) {
+			dev_err(sdev->dev, "error: failed setting up DAI widget %s\n", w->name);
+			return ret;
+		}
 
-	/*
-	 * For static pipelines, the DAI widget would already be set up and calling
-	 * sof_widget_setup() simply returns without doing anything.
-	 * For dynamic pipelines, the DAI widget will be set up now.
-	 */
-	ret = sof_widget_setup(sdev, swidget);
-	if (ret < 0) {
-		dev_err(sdev->dev, "error: failed setting up DAI widget %s\n", w->name);
-		return ret;
+		/* send DAI_CONFIG IPC */
+		ret = sof_ipc_tx_message(sdev->ipc, config->hdr.cmd, config, config->hdr.size,
+					  &reply, sizeof(reply));
+		if (ret < 0) {
+			dev_err(sdev->dev, "error: failed setting DAI config for %s\n", w->name);
+			return ret;
+		}
 	}
-
-	/* send DAI_CONFIG IPC */
-	ret = sof_ipc_tx_message(sdev->ipc, config->hdr.cmd, config, config->hdr.size,
-				  &reply, sizeof(reply));
-	if (ret < 0) {
-		dev_err(sdev->dev, "error: failed setting DAI config for %s\n", w->name);
-		return ret;
-	}
-
 	sof_dai->configured = true;
 
 	return 0;
@@ -106,14 +106,14 @@ int hda_ctrl_dai_widget_free(struct snd_soc_dapm_widget *w)
 		return 0;
 
 	config = &sof_dai->dai_config[sof_dai->current_config];
-
-	ret = sof_ipc_tx_message(sdev->ipc, config->hdr.cmd, config, config->hdr.size,
-				  &reply, sizeof(reply));
-	if (ret < 0) {
-		dev_err(sdev->dev, "error: failed resetting DAI config for %s\n", w->name);
-		return ret;
+	if (snd_sof_dsp_get_ipc_version(sdev) == SOF_IPC_VERSION_1) {
+		ret = sof_ipc_tx_message(sdev->ipc, config->hdr.cmd, config, config->hdr.size,
+					  &reply, sizeof(reply));
+		if (ret < 0) {
+			dev_err(sdev->dev, "error: failed resetting DAI config for %s\n", w->name);
+			return ret;
+		}
 	}
-
 	sof_dai->configured = false;
 
 	return sof_widget_free(sdev, swidget);
