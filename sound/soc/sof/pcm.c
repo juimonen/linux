@@ -841,6 +841,7 @@ EXPORT_SYMBOL(sof_pcm_dai_link_fixup);
 static int sof_pcm_probe(struct snd_soc_component *component)
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	int ipc_version = snd_sof_dsp_get_ipc_version(sdev);
 	struct snd_sof_pdata *plat_data = sdev->pdata;
 	const char *tplg_filename;
 	int ret;
@@ -855,7 +856,11 @@ static int sof_pcm_probe(struct snd_soc_component *component)
 	if (!tplg_filename)
 		return -ENOMEM;
 
-	ret = snd_sof_load_topology(component, tplg_filename);
+	if (ipc_version == SOF_IPC_VERSION_1)
+		ret = snd_sof_load_topology(component, tplg_filename);
+	else
+		ret = snd_sof_load_topology2(component, tplg_filename);
+
 	if (ret < 0) {
 		dev_err(component->dev, "error: failed to load DSP topology %d\n",
 			ret);

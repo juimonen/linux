@@ -177,6 +177,7 @@ int snd_sof_bytes_ext_volatile_get(struct snd_kcontrol *kcontrol, unsigned int _
  * be freed by snd_soc_unregister_component,
  */
 int snd_sof_load_topology(struct snd_soc_component *scomp, const char *file);
+int snd_sof_load_topology2(struct snd_soc_component *scomp, const char *file);
 int snd_sof_complete_pipeline(struct device *dev,
 			      struct snd_sof_widget *swidget);
 
