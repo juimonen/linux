@@ -23,6 +23,8 @@
 static const struct sof_dev_desc mtl_desc = {
 	/* TODO: add MTL machines */
 	.use_acpi_target_states	= true,
+	.machines               = snd_soc_acpi_intel_mtl_machines,
+	.alt_machines		= snd_soc_acpi_intel_mtl_sdw_machines,
 	.resindex_lpe_base      = 0,
 	.resindex_pcicfg_base   = -1,
 	.resindex_imr_base      = -1,
