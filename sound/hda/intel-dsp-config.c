@@ -336,6 +336,13 @@ static const struct config_entry config_table[] = {
 		.device = 0x51cc,
 	},
 #endif
+/* Meteor Lake */
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_METEORLAKE)
+	{
+		.flags = FLAG_SOF,
+		.device = 0x7e28,
+	},
+#endif
 
 };
 
