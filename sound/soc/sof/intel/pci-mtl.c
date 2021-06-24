@@ -53,9 +53,9 @@ static struct pci_driver snd_sof_pci_intel_mtl_driver = {
 	.probe = hda_pci_intel_probe,
 	.remove = sof_pci_remove,
 	.shutdown = sof_pci_shutdown,
-	.driver = {
-		.pm = &sof_pci_pm,
-	},
+	//.driver = {
+	//	.pm = &sof_pci_pm,
+	//},
 };
 module_pci_driver(snd_sof_pci_intel_mtl_driver);
 
