@@ -145,6 +145,20 @@ int sof_cavs_fw_ready(struct snd_sof_dev *sdev, u32 msg_id)
 		outbox_offset, outbox_size);
 
 
+	if (!IS_ENABLED(CONFIG_SND_SOC_SOF_IPC4_TRACE)) {
+		int ret;
+
+		sdev->debug_box.offset = snd_sof_dsp_get_window_offset(sdev, 3);
+		sdev->debug_box.size = IPC4_DBOX_DEFAULT_SIZE;
+
+		ret = snd_sof_debugfs_add_region_item(sdev, SOF_FW_BLK_TYPE_SRAM,
+						sdev->debug_box.offset,
+						sdev->debug_box.size, "etrace",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
+		if (ret < 0)
+			dev_err(sdev->dev, "failed to create trace, %d", ret);
+	}
+
 	return 0;
 }
 

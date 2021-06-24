@@ -21,7 +21,8 @@
 #define IPC4_CAVS_MBOX_UPLINK_SIZE      0x1000
 #define IPC4_CAVS_MBOX_DOWNLINK_SIZE    0x1000
 
-#define IPC4_DBOX_SIZE	0x10000
+#define IPC4_DBOX_DEFAULT_SIZE	0x2000
+#define IPC4_DBOX_CAVS_25_SIZE	0x10000
 
 enum sof_node_type {
 	//HD/A host output (-> DSP).
