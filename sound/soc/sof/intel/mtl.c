@@ -225,6 +225,18 @@ static int mtl_dsp_pre_fw_run(struct snd_sof_dev *sdev)
 static int mtl_dsp_post_fw_run(struct snd_sof_dev *sdev)
 {
 	/* TODO */
+	int ret;
+
+	if (sdev->first_boot) {
+		ret = hda_sdw_startup(sdev);
+		if (ret < 0) {
+			dev_err(sdev->dev,
+				"error: could not startup SoundWire links\n");
+			return ret;
+		}
+	}
+
+	hda_sdw_int_enable(sdev, true);
 	return 0;
 }
 
