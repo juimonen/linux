@@ -1927,7 +1927,7 @@ static struct auxiliary_driver sdw_intel_drv = {
 	.remove = intel_link_remove,
 	.driver = {
 		/* auxiliary_driver_register() sets .name to be the modname */
-		.pm = &intel_pm,
+		//.pm = &intel_pm,
 	},
 	.id_table = intel_link_id_table
 };
