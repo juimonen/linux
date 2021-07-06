@@ -41,6 +41,8 @@ struct snd_sof_pdata {
 
 	/* descriptor */
 	const struct sof_dev_desc *desc;
+	/* support multiple ops */
+	int ops_index;
 
 	/* firmware and topology filenames */
 	const char *fw_filename_prefix;

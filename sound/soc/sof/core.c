@@ -23,6 +23,10 @@ int sof_core_debug;
 module_param_named(sof_debug, sof_core_debug, int, 0444);
 MODULE_PARM_DESC(sof_debug, "SOF core debug options (0x0 all off)");
 
+static int sof_ops_index_choice;
+module_param(sof_ops_index_choice, int, 0444);
+MODULE_PARM_DESC(sof_ops_index_choice, "SOF OPS Index");
+
 /* SOF defaults if not provided by the platform in ms */
 #define TIMEOUT_DEFAULT_IPC_MS  500
 #define TIMEOUT_DEFAULT_BOOT_MS 2000
@@ -308,6 +312,9 @@ int snd_sof_device_probe(struct device *dev, struct snd_sof_pdata *plat_data)
 	sdev->extractor_stream_tag = SOF_PROBE_INVALID_NODE_ID;
 #endif
 	dev_set_drvdata(dev, sdev);
+
+	sdev->pdata->ops_index = sof_ops_index_choice;
+	dev_dbg(sdev->dev, "%s ops_index %d\n", __func__, sdev->pdata->ops_index);
 
 	/* check all mandatory ops */
 	if (!sof_ops(sdev) || !sof_ops(sdev)->probe || !sof_ops(sdev)->run ||

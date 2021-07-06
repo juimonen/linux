@@ -19,7 +19,7 @@
 #include "sof-priv.h"
 
 #define sof_ops(sdev) \
-	((sdev)->pdata->desc->ops)
+	(&((sdev)->pdata->desc->ops[(sdev)->pdata->ops_index]))
 
 /* Mandatory operations are verified during probing */
 
