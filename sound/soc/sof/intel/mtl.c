@@ -58,6 +58,31 @@ out:
 	return ret;
 }
 
+/* Check if an SDW IRQ occurred */
+bool mtl_dsp_check_sdw_irq(struct snd_sof_dev *sdev)
+{
+	bool ret = false;
+	u32 irq_status;
+	u32 hfintipptr;
+
+	/* read Interrupt IP Pointer */
+	hfintipptr = snd_sof_dsp_read(sdev, HDA_DSP_BAR, MTL_HfINTIPPTR) & MTL_HfINTIPPTR_PTR_MASK;
+	irq_status = snd_sof_dsp_read(sdev, HDA_DSP_BAR, hfintipptr + MTL_DSP_IRQSTS);
+
+	dev_vdbg(sdev->dev, "irq handler: irq_status:0x%x\n", irq_status);
+
+	/* invalid message ? */
+	if (irq_status == 0xffffffff)
+		goto out;
+
+	/* IPC message ? */
+	if (irq_status & MTL_DSP_IRQSTS_SDW)
+		ret = true;
+
+out:
+	return ret;
+}
+
 int mtl_ipc_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 {
 
@@ -727,6 +752,7 @@ const struct sof_intel_dsp_desc mtl_chip_info = {
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
 	.sdw_shim_base = SDW_SHIM_BASE_ACE,
 	.sdw_alh_base = SDW_ALH_BASE_ACE,
+	.check_sdw_irq	= mtl_dsp_check_sdw_irq,
 	.ssp_mclk = 19200000,
 	.dmic_hw_version = SOF_DMIC_MTL,
 	.dmic_controller_num = 2,
