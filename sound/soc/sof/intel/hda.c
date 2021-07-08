@@ -119,6 +119,17 @@ int hda_ctrl_dai_widget_free(struct snd_soc_dapm_widget *w)
 	return sof_widget_free(sdev, swidget);
 }
 
+static const struct sof_intel_dsp_desc
+	*get_chip_info(struct snd_sof_pdata *pdata)
+{
+	const struct sof_dev_desc *desc = pdata->desc;
+	const struct sof_intel_dsp_desc *chip_info;
+
+	chip_info = desc->chip_info;
+
+	return chip_info;
+}
+
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE)
 
 /*
@@ -294,7 +305,7 @@ static int hda_sdw_exit(struct snd_sof_dev *sdev)
 	return 0;
 }
 
-static bool hda_dsp_check_sdw_irq(struct snd_sof_dev *sdev)
+bool hda_common_check_sdw_irq(struct snd_sof_dev *sdev)
 {
 	struct sof_intel_hda_dev *hdev;
 	bool ret = false;
@@ -318,6 +329,17 @@ static bool hda_dsp_check_sdw_irq(struct snd_sof_dev *sdev)
 
 out:
 	return ret;
+}
+
+static bool hda_dsp_check_sdw_irq(struct snd_sof_dev *sdev)
+{
+	const struct sof_intel_dsp_desc *chip;
+
+	chip = get_chip_info(sdev->pdata);
+	if (chip && chip->check_sdw_irq)
+		return chip->check_sdw_irq(sdev);
+
+	return false;
 }
 
 static irqreturn_t hda_dsp_sdw_thread(int irq, void *context)
@@ -749,17 +771,6 @@ skip_soundwire:
 		snd_hdac_ext_bus_link_put(bus, hlink);
 #endif
 	return 0;
-}
-
-static const struct sof_intel_dsp_desc
-	*get_chip_info(struct snd_sof_pdata *pdata)
-{
-	const struct sof_dev_desc *desc = pdata->desc;
-	const struct sof_intel_dsp_desc *chip_info;
-
-	chip_info = desc->chip_info;
-
-	return chip_info;
 }
 
 static irqreturn_t hda_dsp_interrupt_handler(int irq, void *context)
