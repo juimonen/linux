@@ -143,7 +143,7 @@ const struct sof_intel_dsp_desc icl_chip_info = {
 	.rom_init_timeout	= 300,
 	.ssp_count = ICL_SSP_COUNT,
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
-	.sdw_shim_base = SDW_SHIM_BASE,
-	.sdw_alh_base = SDW_ALH_BASE,
+	.sdw_shim_base = SDW_SHIM_BASE_CAVS,
+	.sdw_alh_base = SDW_ALH_BASE_CAVS,
 };
 EXPORT_SYMBOL_NS(icl_chip_info, SND_SOC_SOF_INTEL_HDA_COMMON);
