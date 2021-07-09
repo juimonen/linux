@@ -12,9 +12,16 @@
 #define __SOF_IPC4_INTEL_H
 
 #include "../sof-audio.h"
+#include "../ipc4-topology.h"
+
+#define SET_BIT(b, x)		(((x) & 1) << (b))
+#define SET_BITS(b_hi, b_lo, x)	\
+	(((x) & ((1ULL << ((b_hi) - (b_lo) + 1ULL)) - 1ULL)) << (b_lo))
 
 #define IPC4_CAVS_MBOX_UPLINK_SIZE      0x1000
 #define IPC4_CAVS_MBOX_DOWNLINK_SIZE    0x1000
+
+#define IPC4_DBOX_SIZE	0x10000
 
 enum sof_node_type {
 	//HD/A host output (-> DSP).
@@ -105,5 +112,9 @@ int sof_ipc4_get_module_config(struct snd_sof_dev *sdev,
 			struct snd_pcm_hw_params *params,
 			struct sof_ipc_pcm_params *ipc_params,
 			void *pdata);
+
+int sof_ipc4_generate_dmic_config(struct snd_sof_dev *sdev, struct sof_ipc4_dai *ipc4_dai,
+		struct snd_pcm_hw_params *params,
+		int lp_mode);
 
 #endif

@@ -166,6 +166,9 @@ struct sof_intel_dsp_desc {
 	int ssp_count;			/* ssp count of the platform */
 	int ssp_base_offset;		/* base address of the SSPs */
 	int ssp_mclk;		/* mclk rate */
+	int dmic_hw_version;
+	int dmic_controller_num;
+	int dmic_mclk;
 	u32 sdw_shim_base;
 	u32 sdw_alh_base;
 	bool (*check_sdw_irq)(struct snd_sof_dev *sdev);

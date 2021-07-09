@@ -17,6 +17,7 @@
 #include "../ipc4.h"
 #include "../sof-audio.h"
 #include "mtl.h"
+#include "ipc4-dmic.h"
 
 static const struct snd_sof_debugfs_map mtl_dsp_debugfs[] = {
 	{"hda", HDA_DSP_HDA_BAR, 0, 0x4000, SOF_DEBUGFS_ACCESS_ALWAYS},
@@ -712,5 +713,8 @@ const struct sof_intel_dsp_desc mtl_chip_info = {
 	.ssp_count = ICL_SSP_COUNT,
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
 	.ssp_mclk = 19200000,
+	.dmic_hw_version = SOF_DMIC_MTL,
+	.dmic_controller_num = 2,
+	.dmic_mclk = 19200000
 };
 EXPORT_SYMBOL_NS(mtl_chip_info, SND_SOC_SOF_INTEL_HDA_COMMON);

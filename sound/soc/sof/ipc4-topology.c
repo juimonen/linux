@@ -27,6 +27,39 @@ static const struct sof_topology_token ipc4_sched_tokens[] = {
 		offsetof(struct sof_ipc4_pipeline, lp_mode), 0}
 };
 
+/* DMIC */
+static const struct sof_topology_token dmic_tokens[] = {
+	{SOF_TKN_INTEL_DMIC_DRIVER_VERSION,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_dmic_params, driver_ipc_version),
+		0},
+	{SOF_TKN_INTEL_DMIC_CLK_MIN,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_dmic_params, pdmclk_min), 0},
+	{SOF_TKN_INTEL_DMIC_CLK_MAX,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_dmic_params, pdmclk_max), 0},
+	{SOF_TKN_INTEL_DMIC_SAMPLE_RATE,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_dmic_params, fifo_fs), 0},
+	{SOF_TKN_INTEL_DMIC_DUTY_MIN,
+		SND_SOC_TPLG_TUPLE_TYPE_SHORT, get_token_u16,
+		offsetof(struct sof_ipc_dai_dmic_params, duty_min), 0},
+	{SOF_TKN_INTEL_DMIC_DUTY_MAX,
+		SND_SOC_TPLG_TUPLE_TYPE_SHORT, get_token_u16,
+		offsetof(struct sof_ipc_dai_dmic_params, duty_max), 0},
+	{SOF_TKN_INTEL_DMIC_NUM_PDM_ACTIVE,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_dmic_params,
+			 num_pdm_active), 0},
+	{SOF_TKN_INTEL_DMIC_FIFO_WORD_LENGTH,
+		SND_SOC_TPLG_TUPLE_TYPE_SHORT, get_token_u16,
+		offsetof(struct sof_ipc_dai_dmic_params, fifo_bits), 0},
+	{SOF_TKN_INTEL_DMIC_UNMUTE_RAMP_TIME_MS,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_dmic_params, unmute_ramp_time), 0},
+};
+
 /* ALH */
 static const struct sof_topology_token alh_tokens[] = {
 	{SOF_TKN_INTEL_ALH_RATE,
@@ -428,7 +461,7 @@ static int sof_ipc4_dai_load(struct snd_soc_component *scomp, int index,
 	}
 
 	spcm->pcm = *pcm;
-	dev_dbg(scomp->dev, "tplg2: load pcm %s\n", pcm->dai_name);
+	dev_dbg(scomp->dev, "tplg2: load pcm %s, index %d\n", pcm->dai_name, index);
 
 	dai_drv->dobj.private = spcm;
 	list_add(&spcm->list, &sdev->pcm_list);
@@ -561,7 +594,38 @@ static int sof_ipc4_set_dai_config(struct snd_sof_dev *sdev, u32 size,
 	return 0;
 }
 
-static int sof_ipc4_link_alh_load(struct snd_soc_component *scomp, int index,
+static int sof_ipc4_link_hda_load(struct snd_soc_component *scomp, int index,
+				  struct snd_soc_dai_link *link,
+				  struct snd_soc_tplg_link_config *cfg,
+				  struct snd_soc_tplg_hw_config *hw_config,
+				  struct sof_ipc_dai_config *config)
+{
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
+	struct snd_soc_dai *dai;
+	u32 size = sizeof(*config);
+	int ret;
+
+	/* init IPC */
+	memset(&config->hda, 0, sizeof(struct sof_ipc_dai_hda_params));
+
+	dai = snd_soc_find_dai(link->cpus);
+	if (!dai) {
+		dev_err(scomp->dev, "error: failed to find dai %s in %s",
+			link->cpus->dai_name, __func__);
+		return -EINVAL;
+	}
+
+	config->hda.link_dma_ch = DMA_CHAN_INVALID;
+
+	ret = sof_ipc4_set_dai_config(sdev, size, link, config);
+	if (ret < 0)
+		dev_err(scomp->dev, "error: failed to process hda dai link %s",
+			link->name);
+
+	return ret;
+}
+
+static int sof_ipc4_link_dmic_load(struct snd_soc_component *scomp, int index,
 			      struct snd_soc_dai_link *link,
 			      struct snd_soc_tplg_link_config *cfg,
 			      struct snd_soc_tplg_hw_config *hw_config,
@@ -569,6 +633,46 @@ static int sof_ipc4_link_alh_load(struct snd_soc_component *scomp, int index,
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
 	struct snd_soc_tplg_private *private = &cfg->priv;
+	struct sof_ipc_fw_ready *ready = &sdev->fw_ready;
+	size_t size = sizeof(*config);
+	int ret;
+
+	/* Ensure the entire DMIC config struct is zeros */
+	memset(&config->dmic, 0, sizeof(struct sof_ipc_dai_dmic_params));
+
+	/* get DMIC tokens */
+	ret = sof_parse_tokens(scomp, &config->dmic, dmic_tokens,
+			       ARRAY_SIZE(dmic_tokens), private->array,
+			       le32_to_cpu(private->size));
+	if (ret != 0) {
+		dev_err(scomp->dev, "error: parse dmic tokens failed %d\n",
+			le32_to_cpu(private->size));
+		return ret;
+	}
+
+	/* debug messages */
+	dev_dbg(scomp->dev, "tplg: config DMIC%d driver version %d\n",
+		config->dai_index, config->dmic.driver_ipc_version);
+	dev_dbg(scomp->dev, "pdmclk_min %d pdm_clkmax %d duty_min %d\n",
+		config->dmic.pdmclk_min, config->dmic.pdmclk_max,
+		config->dmic.duty_min);
+	dev_dbg(scomp->dev, "duty_max %d fifo_fs %d num_pdms active %d\n",
+		config->dmic.duty_max, config->dmic.fifo_fs,
+		config->dmic.num_pdm_active);
+	dev_dbg(scomp->dev, "fifo word length %d\n", config->dmic.fifo_bits);
+
+	return ret;
+}
+
+static int sof_ipc4_link_alh_load(struct snd_soc_component *scomp, int index,
+				  struct snd_soc_dai_link *link,
+				  struct snd_soc_tplg_link_config *cfg,
+				  struct snd_soc_tplg_hw_config *hw_config,
+				  struct sof_ipc_dai_config *config)
+{
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
+	struct snd_soc_tplg_private *private = &cfg->priv;
+	struct sof_ipc_fw_ready *ready = &sdev->fw_ready;
 	size_t size = sizeof(*config);
 	int ret;
 
@@ -671,6 +775,14 @@ static int sof_ipc4_link_load(struct snd_soc_component *scomp, int index,
 	case SOF_DAI_INTEL_SSP:
 		ret = sof_link_ssp_load(scomp, index, link, cfg, hw_config, &config, 0);
 		break;
+	case SOF_DAI_INTEL_HDA:
+		ret = sof_ipc4_link_hda_load(scomp, index, link, cfg, hw_config,
+								&config);
+		break;
+	case SOF_DAI_INTEL_DMIC:
+		ret = sof_ipc4_link_dmic_load(scomp, index, link, cfg, hw_config,
+								&config);
+		break;
 	default:
 		dev_err(scomp->dev, "error: invalid DAI type %d\n",
 			config.type);
@@ -720,6 +832,8 @@ found:
 	switch (sof_dai->dai_config->type) {
 	case SOF_DAI_INTEL_ALH:
 	case SOF_DAI_INTEL_SSP:
+	case SOF_DAI_INTEL_DMIC:
+	case SOF_DAI_INTEL_HDA:
 		/* no resource needs to be released for all cases above */
 		break;
 	default:

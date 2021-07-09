@@ -15,6 +15,7 @@
 #include "ipc4-intel.h"
 #include "../ipc4.h"
 #include "../sof-audio.h"
+#include "ipc4-dmic.h"
 
 static const struct snd_sof_debugfs_map tgl_dsp_debugfs[] = {
 	{"hda", HDA_DSP_HDA_BAR, 0, 0x4000, SOF_DEBUGFS_ACCESS_ALWAYS},
@@ -250,6 +251,9 @@ const struct sof_intel_dsp_desc tgl_chip_info = {
 	.ssp_count = ICL_SSP_COUNT,
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
 	.ssp_mclk = 38400000,
+	.dmic_hw_version = SOF_DMIC_TGL,
+	.dmic_controller_num = 2,
+	.dmic_mclk = 38400000,
 	.sdw_shim_base = SDW_SHIM_BASE_CAVS,
 	.sdw_alh_base = SDW_ALH_BASE_CAVS,
 	.check_sdw_irq	= hda_common_check_sdw_irq,
@@ -271,6 +275,9 @@ const struct sof_intel_dsp_desc tglh_chip_info = {
 	.ssp_count = ICL_SSP_COUNT,
 	.ssp_base_offset = CNL_SSP_BASE_OFFSET,
 	.ssp_mclk = 38400000,
+	.dmic_hw_version = SOF_DMIC_TGL,
+	.dmic_controller_num = 2,
+	.dmic_mclk = 38400000,
 	.sdw_shim_base = SDW_SHIM_BASE_CAVS,
 	.sdw_alh_base = SDW_ALH_BASE_CAVS,
 	.check_sdw_irq	= hda_common_check_sdw_irq,

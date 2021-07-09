@@ -9,6 +9,7 @@
 //
 // ipc4 intel hardware configuration
 //
+#include <sound/pcm_params.h>
 #include <sound/sof/header.h>
 #include "../sof-audio.h"
 #include "../ipc4-topology.h"
@@ -145,6 +146,31 @@ u32 sof_ipc4_cavs_dsp_get_ipc_version(struct snd_sof_dev *sdev)
 	return SOF_IPC_VERSION_2;
 }
 
+int sof_ipc4_link_dma_get_stream_tag(struct snd_sof_dev *sdev, const char *dai_name, int dir)
+{
+	struct sof_ipc_dai_config *config;
+	struct snd_sof_dai *sof_dai;
+
+	list_for_each_entry(sof_dai, &sdev->dai_list, list) {
+		if (!sof_dai->name)
+			continue;
+
+		if (!strcmp(dai_name, sof_dai->name) &&
+		    dir == sof_dai->comp_dai.direction) {
+			config = sof_dai->dai_config;
+
+			if (!config) {
+				dev_err(sdev->dev, "error: no config for DAI %s\n", sof_dai->name);
+				return -EINVAL;
+			}
+
+			return config->hda.link_dma_ch;
+		}
+	}
+
+	return -EINVAL;
+}
+
 static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget,
 			struct snd_pcm_hw_params *params,
 			struct sof_ipc_pcm_params *ipc_params,
@@ -200,6 +226,8 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 		struct snd_sof_dai *dai;
 		int bit_depth, valid_bits;
 		int rate, channels;
+		int stream_tag;
+		int node_id;
 
 		ipc4_dai = (struct sof_ipc4_dai *)swidget->private;
 		copier = &ipc4_dai->copier;
@@ -234,8 +262,6 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 			{
 				valid_bits = dai->dai_config->ssp.sample_valid_bits;
 				bit_depth = dai->dai_config->ssp.tdm_slot_width;
-				channels = params_channels(params);
-				rate = params_rate(params);
 
 				if (swidget->id == snd_soc_dapm_dai_in) {
 					copier->out_format.bit_depth = bit_depth;
@@ -259,13 +285,56 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 			}
 
 			copier->gtw_cfg.node_id =
-				SOF_IPC4_NODE_INDEX(ipc4_dai->dai.dai_config->dai_index) |
+				SOF_IPC4_NODE_INDEX(dai->dai_config->dai_index) |
 				SOF_IPC4_NODE_TYPE(type);
 
 			ret = sof_ipc4_generate_ssp_blob(sdev, ipc4_dai, lp_mode);
 			break;
-		case SOF_DAI_INTEL_DMIC:
 		case SOF_DAI_INTEL_HDA:
+			if (w->id == snd_soc_dapm_dai_in)
+				type = nHdaLinkOutputClass;
+			else
+				type = nHdaLinkInputClass;
+
+			stream_tag = sof_ipc4_link_dma_get_stream_tag(sdev, dai->name,
+					dai->comp_dai.direction);
+			if (stream_tag < 0)
+				return stream_tag;
+
+			copier->gtw_cfg.node_id = SOF_IPC4_NODE_INDEX(stream_tag) |
+				SOF_IPC4_NODE_TYPE(type);
+			copier->gtw_cfg.dma_buffer_size = copier->base_config.ibs;
+
+			gtw_attr = devm_kzalloc(sdev->dev, sizeof(*gtw_attr), GFP_KERNEL);
+			if (!gtw_attr)
+				return -ENOMEM;
+
+			gtw_attr->lp_buffer_alloc = lp_mode;
+			copier->gtw_cfg.config_length = sizeof(*gtw_attr) >> 2;
+			ipc4_dai->copier_config = (uint32_t *)gtw_attr;
+			break;
+
+		case SOF_DAI_INTEL_DMIC:
+			switch (params_rate(params)) {
+			case 48000:
+				node_id = 0;
+				break;
+			case 16000:
+				node_id = 1;
+				break;
+			default:
+				dev_err(sdev->dev, "error: unsupport rate %d", params_rate(params));
+				return -EINVAL;
+			}
+
+			type = nDmicLinkInputClass;
+			copier->gtw_cfg.node_id = SOF_IPC4_NODE_INDEX(node_id) |
+					SOF_IPC4_NODE_TYPE(type);
+			bit_depth = params_width(params);
+			copier->gtw_cfg.dma_buffer_size =
+				sof_ipc4_module_buffer_size(channels, rate, bit_depth,
+							    processor->sch_num);
+			ret = sof_ipc4_generate_dmic_config(sdev, ipc4_dai, params, lp_mode);
 			break;
 		default:
 			break;
