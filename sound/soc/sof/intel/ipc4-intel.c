@@ -206,12 +206,10 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 		copier->gtw_cfg.config_length = sizeof(*gtw_attr) >> 2;
 		host->copier_config = (uint32_t *)gtw_attr;
 
-		if (swidget->id == snd_soc_dapm_aif_in) {
+		if (swidget->id == snd_soc_dapm_aif_in)
 			type = nHdaHostOutputClass;
-		} else {
+		else
 			type = nHdaHostInputClass;
-			copier->base_config.audio_fmt.bit_depth = 32;
-		}
 
 		copier->gtw_cfg.node_id = SOF_IPC4_NODE_INDEX(ipc_params->params.stream_tag - 1) |
 			SOF_IPC4_NODE_TYPE(type);
@@ -249,8 +247,14 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 				copier->base_config.ibs =
 					sof_ipc4_module_buffer_size(channels, rate, 32,
 								    processor->sch_num);
+				copier->base_config.audio_fmt.bit_depth = 32;
+				copier->base_config.obs =
+					sof_ipc4_module_buffer_size(channels, rate, 32,
+								    processor->sch_num);
+				copier->out_format.bit_depth = 32;
 				copier->gtw_cfg.dma_buffer_size = copier->base_config.ibs;
 				type = nALHLinkInputClass;
+				ipc_params->params.sample_container_bytes = 4;
 			}
 
 			copier->gtw_cfg.node_id =

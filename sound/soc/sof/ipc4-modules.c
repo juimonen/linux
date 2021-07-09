@@ -55,7 +55,8 @@ static int sof_ipc4_init_audio_fmt(struct snd_sof_dev *sdev,
 static int sof_ipc4_init_base_config(struct snd_sof_dev *sdev,
 						  struct snd_sof_widget *swidget,
 					      struct basic_module_cfg *base_config,
-					      struct snd_pcm_hw_params *params)
+					      struct snd_pcm_hw_params *params,
+					      struct sof_ipc_stream_params *ipc_params)
 {
 	struct sof_module_processor *processor;
 	int channels, rate, width;
@@ -64,9 +65,9 @@ static int sof_ipc4_init_base_config(struct snd_sof_dev *sdev,
 	module_id = SOF_IPC4_MODULE_ID(swidget->comp_id);
 	processor = sdev->fw_modules[module_id].private;
 
-	width = params_width(params);
-	rate = params_rate(params);
-	channels = params_channels(params);
+	width = (ipc_params->sample_container_bytes << 3);
+	rate = ipc_params->rate;
+	channels = ipc_params->channels;
 
 	dev_dbg(sdev->dev, "format width %d, rate %d, ch %d", width, rate, channels);
 
@@ -76,7 +77,7 @@ static int sof_ipc4_init_base_config(struct snd_sof_dev *sdev,
 	base_config->is_pages = SOF_IPC4_FW_PAGE(sdev->fw_modules[module_id].bss_size);
 
 	return sof_ipc4_init_audio_fmt(sdev, &base_config->audio_fmt, channels,
-				       rate, width, width);
+				       rate, width, params_width(params));
 }
 
 static int sof_ipc4_init_out_audio_fmt(struct snd_sof_dev *sdev,
@@ -133,7 +134,7 @@ static int sof_ipc4_process_copier_module(struct snd_sof_dev *sdev,
 	}
 
 	params = &spcm->params[pcm->params.direction];
-	ret = sof_ipc4_init_base_config(sdev, swidget, &copier->base_config, params);
+	ret = sof_ipc4_init_base_config(sdev, swidget, &copier->base_config, params, &pcm->params);
 	if (ret < 0)
 		return ret;
 

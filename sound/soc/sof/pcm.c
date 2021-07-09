@@ -528,6 +528,17 @@ static int sof_ipc4_pcm_hw_params(struct snd_soc_component *component,
 	}
 
 	pcm.params.direction = substream->stream;
+	pcm.params.sample_valid_bytes = params_width(params) >> 3;
+	pcm.params.buffer_fmt = SOF_IPC_BUFFER_INTERLEAVED;
+	pcm.params.rate = params_rate(params);
+	pcm.params.channels = params_channels(params);
+	pcm.params.host_period_bytes = params_period_bytes(params);
+
+	/* container size */
+	ret = snd_pcm_format_physical_width(params_format(params));
+	if (ret < 0)
+		return ret;
+	pcm.params.sample_container_bytes = ret >> 3;
 
 	/* firmware already configured host stream */
 	ret = snd_sof_pcm_platform_hw_params(sdev,
