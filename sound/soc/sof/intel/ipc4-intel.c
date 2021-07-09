@@ -20,6 +20,7 @@
 #include "hda-ipc.h"
 #include "hda.h"
 #include "ipc4-i2s.h"
+#include "ipc4-alh.h"
 
 static void ipc4_cavs_host_done(struct snd_sof_dev *sdev)
 {
@@ -149,6 +150,7 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 			struct sof_ipc_pcm_params *ipc_params,
 			int lp_mode)
 {
+	struct snd_sof_widget *w = (struct snd_sof_widget *)swidget;
 	struct sof_module_processor *processor;
 	struct sof_ipc4_module_copier *copier;
 	struct sof_gtw_attributes *gtw_attr;
@@ -178,10 +180,12 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 		copier->gtw_cfg.config_length = sizeof(*gtw_attr) >> 2;
 		host->copier_config = (uint32_t *)gtw_attr;
 
-		if (swidget->id == snd_soc_dapm_aif_in)
+		if (swidget->id == snd_soc_dapm_aif_in) {
 			type = nHdaHostOutputClass;
-		else
+		} else {
 			type = nHdaHostInputClass;
+			copier->base_config.audio_fmt.bit_depth = 32;
+		}
 
 		copier->gtw_cfg.node_id = SOF_IPC4_NODE_INDEX(ipc_params->params.stream_tag - 1) |
 			SOF_IPC4_NODE_TYPE(type);
@@ -201,7 +205,31 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 		copier = &ipc4_dai->copier;
 		dai = &ipc4_dai->dai;
 
+		channels = params_channels(params);
+		rate = params_rate(params);
+
 		switch (ipc4_dai->dai.dai_config->type) {
+		case SOF_DAI_INTEL_ALH:
+			if (w->id == snd_soc_dapm_dai_in) {
+				copier->out_format.bit_depth = 32;
+				copier->base_config.obs =
+					sof_ipc4_module_buffer_size(channels, rate, 32,
+								    processor->sch_num);
+				copier->gtw_cfg.dma_buffer_size = copier->base_config.obs;
+				type = nALHLinkOutputClass;
+			} else {
+				copier->base_config.ibs =
+					sof_ipc4_module_buffer_size(channels, rate, 32,
+								    processor->sch_num);
+				copier->gtw_cfg.dma_buffer_size = copier->base_config.ibs;
+				type = nALHLinkInputClass;
+			}
+
+			copier->gtw_cfg.node_id =
+				SOF_IPC4_NODE_INDEX(ipc4_dai->dai.dai_config->alh.stream_id) |
+				SOF_IPC4_NODE_TYPE(type);
+			ret = sof_ipc4_generate_alh_blob(sdev, ipc4_dai, lp_mode);
+			break;
 		case SOF_DAI_INTEL_SSP:
 			{
 				valid_bits = dai->dai_config->ssp.sample_valid_bits;
@@ -237,7 +265,6 @@ static int generate_copier_config(struct snd_sof_dev *sdev, struct snd_sof_widge
 			ret = sof_ipc4_generate_ssp_blob(sdev, ipc4_dai, lp_mode);
 			break;
 		case SOF_DAI_INTEL_DMIC:
-		case SOF_DAI_INTEL_ALH:
 		case SOF_DAI_INTEL_HDA:
 			break;
 		default:

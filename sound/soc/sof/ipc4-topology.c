@@ -27,6 +27,16 @@ static const struct sof_topology_token ipc4_sched_tokens[] = {
 		offsetof(struct sof_ipc4_pipeline, lp_mode), 0}
 };
 
+/* ALH */
+static const struct sof_topology_token alh_tokens[] = {
+	{SOF_TKN_INTEL_ALH_RATE,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_alh_params, rate), 0},
+	{SOF_TKN_INTEL_ALH_CH,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_alh_params, channels), 0},
+};
+
 /* Generic components */
 static const struct sof_topology_token ipc4_comp_tokens[] = {
 	{SOF_TKN_COMP_CPC, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
@@ -551,6 +561,41 @@ static int sof_ipc4_set_dai_config(struct snd_sof_dev *sdev, u32 size,
 	return 0;
 }
 
+static int sof_ipc4_link_alh_load(struct snd_soc_component *scomp, int index,
+			      struct snd_soc_dai_link *link,
+			      struct snd_soc_tplg_link_config *cfg,
+			      struct snd_soc_tplg_hw_config *hw_config,
+			      struct sof_ipc_dai_config *config)
+{
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
+	struct snd_soc_tplg_private *private = &cfg->priv;
+	size_t size = sizeof(*config);
+	int ret;
+
+	/* Ensure the entire DMIC config struct is zeros */
+	memset(&config->alh, 0, sizeof(struct sof_ipc_dai_alh_params));
+
+	/* get DMIC tokens */
+	ret = sof_parse_tokens(scomp, &config->alh, alh_tokens,
+			       ARRAY_SIZE(alh_tokens), private->array,
+			       le32_to_cpu(private->size));
+	if (ret != 0) {
+		dev_err(scomp->dev, "error: parse alh tokens failed %d\n",
+			le32_to_cpu(private->size));
+		return ret;
+	}
+
+	/* debug messages */
+	dev_dbg(scomp->dev, "tplg: config ALH rate %d channels %d\n",
+		config->alh.rate, config->alh.channels);
+
+	ret = sof_ipc4_set_dai_config(sdev, size, link, config);
+	if (ret < 0)
+		dev_err(scomp->dev, "error: failed to process hda dai link %s", __func__);
+
+	return ret;
+}
+
 /* DAI link - used for any driver specific init */
 static int sof_ipc4_link_load(struct snd_soc_component *scomp, int index,
 			 struct snd_soc_dai_link *link,
@@ -620,6 +665,9 @@ static int sof_ipc4_link_load(struct snd_soc_component *scomp, int index,
 	config.format = le32_to_cpu(hw_config->fmt);
 
 	switch (config.type) {
+	case SOF_DAI_INTEL_ALH:
+		ret = sof_ipc4_link_alh_load(scomp, index, link, cfg, hw_config, &config);
+		break;
 	case SOF_DAI_INTEL_SSP:
 		ret = sof_link_ssp_load(scomp, index, link, cfg, hw_config, &config, 0);
 		break;
@@ -670,6 +718,7 @@ static int sof_ipc4_link_unload(struct snd_soc_component *scomp,
 found:
 
 	switch (sof_dai->dai_config->type) {
+	case SOF_DAI_INTEL_ALH:
 	case SOF_DAI_INTEL_SSP:
 		/* no resource needs to be released for all cases above */
 		break;
