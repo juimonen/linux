@@ -163,7 +163,7 @@ static int sof_ipc4_tx_message_unlocked(struct snd_sof_ipc *ipc, u32 header,
 	/* attach any data */
 	if (msg_bytes > msg->msg_data_size) {
 		devm_kfree(sdev->dev, msg->msg_data);
-		msg->msg_data = devm_kzalloc(sdev->dev, msg_bytes, GFP_KERNEL);
+		msg->msg_data = devm_kzalloc(sdev->dev, msg_bytes, GFP_ATOMIC);
 		if (!msg->msg_data) {
 			spin_unlock_irq(&sdev->ipc_lock);
 			return -ENOMEM;
