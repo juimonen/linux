@@ -12,6 +12,7 @@
 
 /* Global configuration request for DMIC */
 #include <sound/pcm_params.h>
+#include <sound/intel-nhlt.h>
 #include "../sof-audio.h"
 #include "../ipc4-topology.h"
 #include "../ipc4.h"
@@ -122,6 +123,40 @@ static uint32_t mtl_2ch_dmic[] = {
 	, 0x00000069, 0x00000034
 };
 
+#define MAX_NHLT_LEN 8000
+static uint8_t mtl_nhlt[MAX_NHLT_LEN];
+
+static int get_dmic_blob_from_nhlt(uint32_t *dst, uint32_t *len)
+{
+	struct nhlt_acpi_table *top;
+	struct nhlt_endpoint *ep;
+	int i;
+
+	top = (struct nhlt_acpi_table *)&mtl_nhlt[0];
+	ep = (struct nhlt_endpoint *)&top->desc[0];
+
+	for (i = 0; i < top->endpoint_count; i++) {
+		if (ep->linktype == NHLT_LINK_DMIC) {
+			dst = (uint32_t *)ep;
+			*len = ep->length;
+			return 0;
+		}
+		ep = (struct nhlt_endpoint *)((uint8_t*)ep + ep->length);
+	}
+
+	return -1;
+}
+
+int copy_nhlt_blob(uint8_t *blob, size_t size)
+{
+	if (size > MAX_NHLT_LEN)
+		return -ENOMEM;
+
+	memcpy(&mtl_nhlt[0], blob, size);
+
+	return 0;
+}
+
 int sof_ipc4_generate_dmic_config(struct snd_sof_dev *sdev, struct sof_ipc4_dai *ipc4_dai,
 		struct snd_pcm_hw_params *params,
 		int lp_mode)
@@ -129,8 +164,12 @@ int sof_ipc4_generate_dmic_config(struct snd_sof_dev *sdev, struct sof_ipc4_dai 
 	struct sof_ipc4_module_copier *copier;
 
 	copier = &ipc4_dai->copier;
-	ipc4_dai->copier_config = mtl_2ch_dmic;
-	copier->gtw_cfg.config_length = sizeof(mtl_2ch_dmic) >> 2;
+
+	/* first try to get dmic blob from nhlt blob, if not found take the static */
+	if(get_dmic_blob_from_nhlt(ipc4_dai->copier_config, &copier->gtw_cfg.config_length)) {
+		ipc4_dai->copier_config = mtl_2ch_dmic;
+		copier->gtw_cfg.config_length = sizeof(mtl_2ch_dmic) >> 2;
+	}
 
 	return 0;
 }

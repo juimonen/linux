@@ -2603,10 +2603,12 @@ static int sof_manifest(struct snd_soc_component *scomp, int index,
 		return 0;
 	}
 
+#if 0
 	if (size != SOF_TPLG_ABI_SIZE) {
 		dev_err(scomp->dev, "error: invalid topology ABI size\n");
 		return -EINVAL;
 	}
+#endif
 
 	dev_info(scomp->dev,
 		 "Topology: ABI %d:%d:%d Kernel ABI %d:%d:%d\n",
@@ -2631,6 +2633,9 @@ static int sof_manifest(struct snd_soc_component *scomp, int index,
 			return -EINVAL;
 		}
 	}
+
+	/* copy nhlt blob after that should be after ABI data */
+	copy_nhlt_blob(&man->priv.data[SOF_TPLG_ABI_SIZE], size - SOF_TPLG_ABI_SIZE);
 
 	return 0;
 }

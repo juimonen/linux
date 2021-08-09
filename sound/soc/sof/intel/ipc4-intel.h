@@ -118,4 +118,5 @@ int sof_ipc4_generate_dmic_config(struct snd_sof_dev *sdev, struct sof_ipc4_dai 
 		struct snd_pcm_hw_params *params,
 		int lp_mode);
 
+int copy_nhlt_blob(uint8_t *blob, size_t size);
 #endif
