@@ -9,6 +9,7 @@
 #include <uapi/sound/sof/tokens.h>
 #include <sound/pcm_params.h>
 #include <sound/sof/ext_manifest4.h>
+#include <sound/intel-nhlt.h>
 #include "sof-priv.h"
 #include "sof-audio.h"
 #include "ipc4-ops.h"
@@ -883,6 +884,142 @@ static int sof_ipc4_prepare_mixer_module(struct snd_sof_widget *swidget,
 	return sof_ipc4_widget_assign_instance_id(sdev, swidget);
 }
 
+static int sof_ipc4_get_ssp_vendor_blob(struct snd_sof_dev *sdev, struct nhlt_endpoint *ep,
+				       uint32_t **dst, uint32_t *len)
+{
+	struct nhlt_specific_cfg cfg;
+	u8 *byte_p = (u8 *)ep;
+	struct nhlt_fmt *formats_config;
+	struct nhlt_fmt_cfg *fmt_cfg;
+	int i;
+
+	/* jump over possible specific config description */
+	cfg = ep->config;
+	byte_p += sizeof(struct nhlt_endpoint) + cfg.size;
+
+	/* jump over formats config */
+	formats_config = (struct nhlt_fmt *)byte_p;
+	dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob found %u formats",
+		formats_config->fmt_count);
+	byte_p += sizeof(struct nhlt_fmt);
+
+	for (i = 0; i < formats_config->fmt_count; i++) {
+
+		fmt_cfg = (struct nhlt_fmt_cfg *)byte_p;
+
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob fmt_tag %u",
+			fmt_cfg->fmt_ext.fmt.fmt_tag);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob channels %u",
+			fmt_cfg->fmt_ext.fmt.channels);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob samples_per_sec %u",
+			fmt_cfg->fmt_ext.fmt.samples_per_sec);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob avg_bytes_per_sec %u",
+			fmt_cfg->fmt_ext.fmt.avg_bytes_per_sec);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob block_align %u",
+			fmt_cfg->fmt_ext.fmt.block_align);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob bits_per_sample %u",
+			fmt_cfg->fmt_ext.fmt.bits_per_sample);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob cb_size %u",
+			fmt_cfg->fmt_ext.fmt.cb_size);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob valid_bits_per_sample %u",
+			fmt_cfg->fmt_ext.sample.valid_bits_per_sample);
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob channel_mask %u",
+			fmt_cfg->fmt_ext.channel_mask);
+
+
+		/* finally we should be at vendor blob*/
+		cfg = fmt_cfg->config;
+		byte_p += sizeof(struct nhlt_fmt_cfg);
+		*dst = (uint32_t *)byte_p;
+		*len = cfg.size;
+		byte_p += cfg.size;
+
+		dev_dbg(sdev->dev, "sof_ipc4_get_ssp_vendor_blob found blob with length %u", *len);
+	}
+
+	return 0;
+}
+
+static int sof_ipc4_get_dmic_vendor_blob(struct snd_sof_dev *sdev, struct nhlt_endpoint *ep,
+					 uint32_t **dst, uint32_t *len)
+{
+	struct nhlt_specific_cfg cfg;
+	u8 *byte_p = (u8 *)ep;
+	struct nhlt_fmt *formats_config;
+	struct nhlt_fmt_cfg *fmt_cfg;
+
+	/* jump over possible specific config description */
+	cfg = ep->config;
+	byte_p += sizeof(struct nhlt_endpoint) + cfg.size;
+
+	/* jump over formats config */
+	formats_config = (struct nhlt_fmt *)byte_p;
+	byte_p += sizeof(struct nhlt_fmt);
+	fmt_cfg = (struct nhlt_fmt_cfg *)byte_p;
+
+	/* finally we should be at vendor blob*/
+	cfg = fmt_cfg->config;
+	byte_p += sizeof(struct nhlt_fmt_cfg);
+	*dst = (uint32_t *)byte_p;
+	*len = cfg.size;
+
+	dev_dbg(sdev->dev, "sof_ipc4_get_dmic_vendor_blob found blob with length %u", *len);
+
+	return 0;
+}
+
+static int snd_sof_get_nhlt_endpoint_data(struct snd_sof_dev *sdev, u32 dai_index, u32 linktype,
+					  u32 **dst, u32 *len)
+{
+	struct nhlt_acpi_table *top = (struct nhlt_acpi_table *)sdev->nhlt_blob;
+	u8 *byte_p = sdev->nhlt_blob + sizeof(struct nhlt_acpi_table);
+	struct nhlt_endpoint *ep;
+	bool found = false;
+	int ret = 0;
+	int i;
+
+	dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data start");
+
+	if (!top)
+		return -EINVAL;
+
+	dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data endpoint_count %u",
+		top->endpoint_count);
+
+	for (i = 0; i < top->endpoint_count; i++) {
+		ep = (struct nhlt_endpoint *)byte_p;
+		dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data ep_link %u", ep->linktype);
+		dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data link req %u", linktype);
+		dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data len %u", ep->length);
+		dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data dai_index %u", dai_index);
+		dev_dbg(sdev->dev, "snd_sof_get_nhlt_endpoint_data virtual id %u",
+			ep->virtual_bus_id);
+		if (ep->linktype == linktype && ep->virtual_bus_id == dai_index) {
+			switch (linktype) {
+			case NHLT_LINK_DMIC:
+				ret = sof_ipc4_get_dmic_vendor_blob(sdev, ep, dst, len);
+				found = true;
+				break;
+			case NHLT_LINK_SSP:
+				ret = sof_ipc4_get_ssp_vendor_blob(sdev, ep, dst, len);
+				found = true;
+				break;
+			default:
+				dev_warn(sdev->dev,
+					 "snd_sof_get_nhlt_endpoint_data unknown linktype %u",
+					 linktype);
+				return -EINVAL;
+			}
+		}
+		if (found)
+			break;
+
+		byte_p += ep->length;
+	}
+
+	return ret;
+}
+
 static int sof_ipc4_prepare_copier_module(struct snd_sof_widget *swidget,
 					  struct snd_sof_platform_stream_params *runtime_params,
 					  struct snd_sof_platform_stream_params *input_params)
@@ -951,7 +1088,31 @@ static int sof_ipc4_prepare_copier_module(struct snd_sof_widget *swidget,
 			ref_audio_fmt_size = sizeof(struct sof_ipc4_base_module_cfg);
 		}
 
+		dev_dbg(sdev->dev, "copier prepare search for dai_type");
 		/*TODO: For Jaska, use ipc4_copier->dai_type to add blobs for SSP/DMIC */
+		switch (ipc4_copier->dai_type) {
+		case SOF_DAI_INTEL_DMIC:
+			if (snd_sof_get_nhlt_endpoint_data(sdev, 0, NHLT_LINK_DMIC,
+							   &ipc4_copier->copier_config,
+							   &ipc4_copier->ipc_config_size))
+				return -EINVAL;
+			/* at this point amount of dwords */
+			ipc4_copier->ipc_config_size >>= 2;
+			break;
+#if 0
+		case SOF_DAI_INTEL_SSP:
+			if (snd_sof_get_nhlt_endpoint_data(sdev, dai->dai_index, NHLT_LINK_SSP,
+							   &ipc4_copier->copier_config,
+							   &ipc4_copier->ipc_config_size))
+				return -EINVAL;
+			/* at this point amount of dwords */
+			ipc4_copier->ipc_config_size >>= 2;
+			break;
+#endif
+		default:
+			break;
+		}
+
 		break;
 	}
 	default:
