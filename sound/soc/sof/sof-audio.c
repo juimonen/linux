@@ -52,12 +52,6 @@ int sof_widget_free(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget)
 	if (--swidget->use_count)
 		return 0;
 
-	if (WIDGET_IS_DAI(swidget->id)) {
-		struct snd_sof_dai *dai = swidget->private;
-
-		dai->configured = false;
-	}
-
 	/* reset route setup status for all routes that contain this widget */
 	sof_reset_route_setup_status(sdev, swidget);
 
@@ -148,7 +142,6 @@ int sof_widget_setup(struct snd_sof_dev *sdev, struct snd_sof_widget *swidget)
 
 	/* send config for DAI components */
 	if (WIDGET_IS_DAI(swidget->id)) {
-		struct snd_sof_dai *dai = swidget->private;
 		unsigned int flags = SOF_DAI_CONFIG_FLAGS_NONE;
 
 		if (tplg_ops->dai_config) {
