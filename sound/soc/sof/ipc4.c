@@ -14,6 +14,7 @@
 #include "sof-audio.h"
 #include "ipc4-priv.h"
 #include "ipc4-ops.h"
+#include "ipc4-priv.h"
 #include "ops.h"
 
 static const struct sof_ipc4_fw_status {
