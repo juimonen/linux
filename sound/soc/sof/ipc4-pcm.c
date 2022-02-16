@@ -152,14 +152,15 @@ static int sof_ipc4_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
 	switch (copier->dai_type) {
 	case SOF_DAI_INTEL_HDA:
 		/*
-		 * HDAudio does not follow the default trigger
-		 * sequence due to firmware implementation
+		 * Set trigger order for capture to SND_SOC_DPCM_TRIGGER_PRE. This is required
+		 * to ensure that the BE DAI pipeline gets stopped/suspended before the FE DAI
+		 * pipeline gets triggered and the pipeline widgets are freed.
 		 */
-		for_each_dpcm_fe(rtd, SNDRV_PCM_STREAM_PLAYBACK, dpcm) {
+		for_each_dpcm_fe(rtd, SNDRV_PCM_STREAM_CAPTURE, dpcm) {
 			struct snd_soc_pcm_runtime *fe = dpcm->fe;
 
-			fe->dai_link->trigger[SNDRV_PCM_STREAM_PLAYBACK] =
-				SND_SOC_DPCM_TRIGGER_POST;
+			fe->dai_link->trigger[SNDRV_PCM_STREAM_CAPTURE] =
+				SND_SOC_DPCM_TRIGGER_PRE;
 		}
 		break;
 	default:
