@@ -18,6 +18,7 @@
 
 #define SOF_IPC4_GAIN_PARAM_ID  0
 #define SOF_IPC4_TPLG_ABI_SIZE 6
+#define SOF_MANIFEST_DATA_TYPE_NHLT 1
 
 static const struct sof_topology_token ipc4_sched_tokens[] = {
 	{SOF_TKN_SCHED_LP_MODE, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
@@ -1488,8 +1489,7 @@ static int sof_ipc4_parse_manifest(struct snd_soc_component *scomp, int index,
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
 	struct sof_ipc4_fw_data *ipc4_data = sdev->private;
-	struct sof_manifest_tlv *manifest_tlv;
-	struct sof_manifest *manifest;
+	struct snd_soc_tplg_ctl_tlv *manifest_tlv;
 	u32 size = le32_to_cpu(man->priv.size);
 	u8 *man_ptr = man->priv.data;
 	u32 len_check;
@@ -1500,13 +1500,11 @@ static int sof_ipc4_parse_manifest(struct snd_soc_component *scomp, int index,
 		return -EINVAL;
 	}
 
-	manifest = (struct sof_manifest *)man_ptr;
-
 	dev_info(scomp->dev,
 		 "Topology: ABI %d:%d:%d Kernel ABI %u:%u:%u\n",
-		  le16_to_cpu(manifest->abi_major), le16_to_cpu(manifest->abi_minor),
-		  le16_to_cpu(manifest->abi_patch),
-		  SOF_ABI_MAJOR, SOF_ABI_MINOR, SOF_ABI_PATCH);
+		 le16_to_cpu(*(u16*)man_ptr), le16_to_cpu(*(u16*)(man_ptr + 2)),
+		 le16_to_cpu(*(u16*)(man_ptr + 4)),
+		 SOF_ABI_MAJOR, SOF_ABI_MINOR, SOF_ABI_PATCH);
 
 	/* TODO: Add ABI compatibility check */
 
@@ -1514,10 +1512,10 @@ static int sof_ipc4_parse_manifest(struct snd_soc_component *scomp, int index,
 	if (size <= SOF_IPC4_TPLG_ABI_SIZE)
 		return 0;
 
-	manifest_tlv = manifest->items;
-	len_check = sizeof(struct sof_manifest);
-	for (i = 0; i < le16_to_cpu(manifest->count); i++) {
-		len_check += sizeof(struct sof_manifest_tlv) + le32_to_cpu(manifest_tlv->size);
+	manifest_tlv = (struct snd_soc_tplg_ctl_tlv *)&man->priv.data[SOF_IPC4_TPLG_ABI_SIZE];
+	len_check = sizeof(struct snd_soc_tplg_ctl_tlv);
+	for (i = 0; i < size; i++) {
+		len_check += sizeof(struct snd_soc_tplg_ctl_tlv) + le32_to_cpu(manifest_tlv->size);
 		if (len_check > size)
 			return -EINVAL;
 
@@ -1536,8 +1534,8 @@ static int sof_ipc4_parse_manifest(struct snd_soc_component *scomp, int index,
 				manifest_tlv->type);
 			break;
 		}
-		man_ptr += sizeof(struct sof_manifest_tlv) + le32_to_cpu(manifest_tlv->size);
-		manifest_tlv = (struct sof_manifest_tlv *)man_ptr;
+		man_ptr += sizeof(struct snd_soc_tplg_ctl_tlv) + le32_to_cpu(manifest_tlv->size);
+		manifest_tlv = (struct snd_soc_tplg_ctl_tlv *)man_ptr;
 	}
 
 	return 0;
